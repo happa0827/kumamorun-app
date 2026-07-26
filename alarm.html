@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://apis.google.com https://www.google.com https://www.gstatic.com https://*.firebaseio.com https://*.firebasedatabase.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.gstatic.com https://www.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://apis.google.com https://www.google.com; frame-src 'self' https://kumamorun-2.firebaseapp.com https://www.google.com https://recaptcha.google.com;"
+    />
+    <title>Kumamorun - スタート制限</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <button id="back" class="btn-back">← 戻る</button>
+
+      <div class="page-title">
+        <h1>スタート制限</h1>
+      </div>
+      <p class="hint">平日（月〜金）と週末（土・日）で別々に設定できます。</p>
+
+      <div class="section">
+        <span class="section-title">平日（月〜金）</span>
+        <div class="field">
+          <span class="sub-title">昼休憩</span>
+          <span class="hint">この時間帯はスタートできません（開始・終了どちらか空欄で無効）。</span>
+          <div class="time-range">
+            開始 <input type="time" id="wd-lunch-start" /> ～ 終了 <input type="time" id="wd-lunch-end" />
+          </div>
+        </div>
+        <div class="field">
+          <span class="sub-title">完全終了</span>
+          <span class="hint">この時刻を過ぎると翌日までスタートできません（空欄で無効）。</span>
+          <div class="time-range">時刻 <input type="time" id="wd-end-time" /></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <span class="section-title">週末（土・日）</span>
+        <div class="field">
+          <span class="sub-title">昼休憩</span>
+          <span class="hint">この時間帯はスタートできません（開始・終了どちらか空欄で無効）。</span>
+          <div class="time-range">
+            開始 <input type="time" id="we-lunch-start" /> ～ 終了 <input type="time" id="we-lunch-end" />
+          </div>
+        </div>
+        <div class="field">
+          <span class="sub-title">完全終了</span>
+          <span class="hint">この時刻を過ぎると翌日までスタートできません（空欄で無効）。</span>
+          <div class="time-range">時刻 <input type="time" id="we-end-time" /></div>
+        </div>
+      </div>
+
+      <button id="restrict-save" class="btn btn-primary btn-block">保存</button>
+    </div>
+    <script src="bundle.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://apis.google.com https://www.google.com https://www.gstatic.com https://*.firebaseio.com https://*.firebasedatabase.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.gstatic.com https://www.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://apis.google.com https://www.google.com; frame-src 'self' https://kumamorun-2.firebaseapp.com https://www.google.com https://recaptcha.google.com;"
+    />
+    <title>Kumamorun</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <button id="back" class="btn-back">← 戻る</button>
+
+      <div class="page-title">
+        <h1>スタート</h1>
+      </div>
+
+      <div class="field">
+        <span class="field-label">時間（秒）— 空欄なら設定の既定値</span>
+        <input type="number" id="time" placeholder="例: 1200" />
+      </div>
+
+      <div class="actions">
+        <button id="start" class="btn btn-primary btn-block">遊びスタート</button>
+        <button id="start-brake" class="btn btn-ghost btn-block">休憩スタート</button>
+      </div>
+    </div>
+    <script src="bundle.js" defer></script>
+  </body>
+</html>

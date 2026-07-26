@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://apis.google.com https://www.google.com https://www.gstatic.com https://*.firebaseio.com https://*.firebasedatabase.app; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.gstatic.com https://www.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://apis.google.com https://www.google.com; frame-src 'self' https://kumamorun-2.firebaseapp.com https://www.google.com https://recaptcha.google.com;"
+    />
+    <title>Kumamorun</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app app-split">
+      <header class="topbar">
+        <span class="brand">kumamorun</span>
+      </header>
+
+      <div class="half top-half">
+        <div class="top-block top-block-row">
+          <div class="stage">
+            <img id="kumamoru" class="avatar" src="src/kumamoru.png" alt="クマモル" />
+          </div>
+
+          <div class="top-text">
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="tile-label">進化</span>
+                <span class="tile-value"
+                  ><span id="evolution">-</span><span class="tile-sub"> / 7</span></span
+                >
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <span class="tile-label"
+                  ><img class="label-icon" src="src/kuma-ru.png" alt="花" />
+                </span>
+                <span class="tile-value"><span id="flowers">-</span></span>
+              </div>
+              <div class="stat-divider"></div>
+              <div class="stat-item">
+                <span class="tile-label">😔 失敗</span>
+                <span class="tile-value"><span id="failures">-</span></span>
+              </div>
+            </div>
+
+            <div class="timer-line">
+              <span id="label" class="tile-label"></span>
+              <span id="remaining" class="tile-value tile-value-time">-</span>
+              <button id="toggle" class="btn btn-ghost btn-sm">一時停止</button>
+              <button id="focus" class="btn btn-ghost btn-sm">集中</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="half bottom-half">
+        <div class="grid2">
+          <button id="timer" class="tile tile-btn tile-primary">スタート</button>
+          <button id="account" class="tile tile-btn">アカウント</button>
+          <button id="setting" class="tile tile-btn">設定</button>
+          <button id="alarm" class="tile tile-btn">スタート制限</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 集中モード: 残り時間だけを全画面に大きく表示する -->
+    <div id="focus-overlay" class="focus-overlay" hidden>
+      <span id="focus-label" class="focus-label"></span>
+      <span id="focus-remaining" class="focus-remaining">-</span>
+      <button id="focus-exit" class="focus-exit">閉じる（Esc）</button>
+    </div>
+
+    <script src="bundle.js" defer></script>
+  </body>
+</html>
