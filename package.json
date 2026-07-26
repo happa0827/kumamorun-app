@@ -1,20 +1,27 @@
 {
-  "name": "kumamorun",
+  "name": "Kumamorun",
   "version": "1.0.0",
   "description": "クマモルと一緒に休憩習慣を育てるデスクトップタイマーアプリ",
   "license": "ISC",
   "author": "happa0827",
   "type": "commonjs",
   "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happa0827/kumamorun-app.git"
+  },
   "scripts": {
     "build": "esbuild renderer.js --bundle --outfile=bundle.js",
     "start": "electron-forge start",
     "test": "echo \"Error: no test specified\" && exit 1",
     "package": "electron-forge package",
-    "make": "electron-forge make"
+    "make": "electron-forge make",
+    "publish": "electron-forge publish"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1"
+    "@electron-forge/publisher-github": "^7.11.2",
+    "electron-squirrel-startup": "^1.0.1",
+    "update-electron-app": "^3.3.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",

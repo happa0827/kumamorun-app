@@ -4,12 +4,30 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    // 実行ファイル/アプリのアイコン（拡張子なし＝OSごとに .ico/.icns を自動選択）
+    icon: './src/icon',
   },
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'happa0827',
+          name: 'kumamorun-app',
+        },
+        prerelease: false,
+        draft: true,
+      },
+    },
+  ],
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        // インストーラー（Setup.exe）のアイコン
+        setupIcon: './src/icon.ico',
+      },
     },
     {
       name: '@electron-forge/maker-zip',

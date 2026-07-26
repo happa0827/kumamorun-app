@@ -1,6 +1,10 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session } = require('electron');
 const path = require('path');
 
+// アップデートチェック（v3 は名前付きエクスポート）
+const { updateElectronApp } = require('update-electron-app');
+updateElectronApp();
+
 // Windows で通知の識別を安定させる
 app.setAppUserModelId('com.kumamorun.app');
 
@@ -16,6 +20,7 @@ const createWindow = () => {
     width: 800,
     height: 600,
     show: !startHidden,
+    icon: path.join(__dirname, 'src', 'icon.ico'),
     webPreferences: {
       // 非表示・非アクティブでもタイマー/アラームの setInterval を間引かない
       backgroundThrottling: false,
