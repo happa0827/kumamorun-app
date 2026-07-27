@@ -283,6 +283,13 @@ if (remainingEl) {
     return Number.isFinite(v) ? v : 0;
   };
 
+  // 花の累計も同じ理由でキャッシュする（進化と同様、開いた瞬間に前回値を表示する）
+  const FLOWERS_KEY = 'flowers';
+  const cachedFlowers = () => {
+    const v = Number(localStorage.getItem(FLOWERS_KEY));
+    return Number.isFinite(v) ? v : 0;
+  };
+
   // ログイン中ユーザーを保持し、進化・花をリアルタイム表示する
   let currentUser = null;
   onAuthStateChanged(auth, (user) => {
@@ -299,7 +306,12 @@ if (remainingEl) {
         }
       });
       onValue(ref(db, `users/${user.uid}/flowers`), (snap) => {
-        if (flowersEl) flowersEl.textContent = snap.val() ?? 0;
+        const f = snap.val() ?? 0;
+        // 進化と同じく、localStorage と DB が違うときだけキャッシュ更新＋描画し直す
+        if (f !== cachedFlowers()) {
+          localStorage.setItem(FLOWERS_KEY, String(f));
+          if (flowersEl) flowersEl.textContent = f;
+        }
       });
       // クラウドの当日統計を取り込んでから、日付が変わっていれば前日を評価する
       get(ref(db, `users/${user.uid}/dailyStats`))
@@ -315,10 +327,8 @@ if (remainingEl) {
           evaluateDailyRollover();
         })
         .catch(() => evaluateDailyRollover());
-    } else {
-      // 未ログインでも localStorage の当日統計から失敗回数を表示する
-      renderFailures();
     }
+    // 未ログイン時は何もしない：進化・花・失敗はすでに localStorage のキャッシュで描画済み
   });
 
   // 遊び完走からこの時間内に休憩を完走できなければ「失敗」として記録する
@@ -387,12 +397,13 @@ if (remainingEl) {
     }
   };
 
-  // 起動直後にキャッシュ済みの進化段階で即描画する（ログイン/DB応答を待たない）。
+  // 起動直後にキャッシュ済みの進化段階・花の数で即描画する（ログイン/DB応答を待たない）。
   // 実際の値と違えば、後で来る onValue が食い違いを検知して描き替える。
   {
     const e = cachedEvolution();
     if (evoEl) evoEl.textContent = e;
     showCharacterImage(e);
+    if (flowersEl) flowersEl.textContent = cachedFlowers();
   }
 
   // 時刻ベースのカウントダウンが0になった瞬間に一度だけ通知＋音を鳴らす。
@@ -511,6 +522,10 @@ if (remainingEl) {
     const stats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
     failuresEl.textContent = stats && stats.date === todayStr() ? stats.failures : 0;
   };
+
+  // 失敗回数も進化・花と同じく、ログイン確定やクラウド同期を待たずに
+  // localStorage の当日統計で即描画する（クラウド側が多ければ後で同期時に描き替わる）。
+  renderFailures();
 
   const saveDailyStats = (stats) => {
     localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
