@@ -1,3 +1,13 @@
 node_modules
 
 out/
+
+# コード署名の証明書（秘密鍵）。Public リポジトリなので絶対にコミットしない
+*.pfx
+*.p12
+
+.env
+
+# ログ。electron-windows-sign.log は署名オプションを丸ごと出力し、
+# PFX のパスワードが平文で残るので絶対にコミットしない
+*.log
