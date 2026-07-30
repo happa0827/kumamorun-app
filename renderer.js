@@ -562,19 +562,26 @@ if (remainingEl) {
       // 遊び完走の時刻を記録し、今日の遊び回数を+1する
       localStorage.setItem(PLAY_FINISHED_KEY, String(Date.now()));
       recordPlay();
-    } else if (label === '休憩') {
-      const playFinishedAt = Number(localStorage.getItem(PLAY_FINISHED_KEY));
-      localStorage.removeItem(PLAY_FINISHED_KEY);
-      if (playFinishedAt && Date.now() - playFinishedAt > REWARD_WINDOW_MS) {
-        // 遊びは完走したが、休憩が3分を超えた → 失敗
-        recordFailure();
-      }
-      // 3分以内に休憩を完走できた場合は成功（失敗として記録しない）
+    }
+    // 休憩の成功/失敗は「開始した時刻」で判定するので完走時には何もしない（handleRestStarted）
+  };
+
+  // 休憩を「開始した時刻」で成功/失敗を判定する（休憩の長さは判定に影響しない）。
+  // 遊び完走から3分以内の開始＝成功、3分を超えてからの開始＝失敗。
+  // 判定に使った猶予はここで消費するので、同じ遊び1回で二重に判定されない。
+  const handleRestStarted = () => {
+    const playFinishedAt = Number(localStorage.getItem(PLAY_FINISHED_KEY));
+    // 直前に遊びを完走していない（打ち切られた遊びの後・休憩だけ回した等）なら判定対象外
+    if (!playFinishedAt) return;
+    localStorage.removeItem(PLAY_FINISHED_KEY);
+    if (Date.now() - playFinishedAt > REWARD_WINDOW_MS) {
+      // 遊びは完走したが、休憩の開始が3分を超えた → 失敗
+      recordFailure();
     }
   };
 
   // 遊び完走後、休憩を「開始せず」放置しても失敗にはしない（放置＝中立、翌日評価は成功日扱い）。
-  // 失敗になるのは「休憩を開始したが3分を超えて完走」した場合のみ（handleTimerFinished('休憩')）。
+  // 失敗になるのは「遊び完走から3分を超えてから休憩を開始した」場合のみ。
 
   // index2.html からの開始要求があれば、新しいタイマー状態を作る
   const startRequest = localStorage.getItem(STORAGE_KEY);
@@ -582,6 +589,8 @@ if (remainingEl) {
     // 一度読んだら消す（リロードで勝手に作り直さないように）
     localStorage.removeItem(STORAGE_KEY);
     const { duration, label } = JSON.parse(startRequest);
+    // 休憩は「開始した時点」で3分以内かを判定する（開始要求は一度しか読まないので1回だけ走る）
+    if (label === '休憩') handleRestStarted();
     saveTimerState({
       label,
       duration,

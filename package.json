@@ -1,7 +1,7 @@
 {
   "name": "Kumamorun",
-  "version": "1.0.0",
-  "description": "クマモルと一緒に休憩習慣を育てるデスクトップタイマーアプリ",
+  "version": "1.0.1",
+  "description": "くまもーるんと一緒に休憩習慣を育てるデスクトップタイマーアプリ",
   "license": "ISC",
   "author": "happa0827",
   "type": "commonjs",
