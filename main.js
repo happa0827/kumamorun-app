@@ -104,6 +104,10 @@ if (!gotLock) {
       callback(permission === 'media' || permission === 'notifications');
     });
 
+    // 既定のメニューバー（File / Edit / View …）を丸ごと外す。ウィンドウ生成前に呼ぶ。
+    // Alt キーでも出てこない代わりに、Ctrl+Shift+I などの既定ショートカットも無効になる。
+    Menu.setApplicationMenu(null);
+
     createWindow();
     createTray();
 

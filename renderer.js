@@ -477,7 +477,7 @@ if (remainingEl) {
         });
         playBeep(1);
       } else {
-        new Notification('進化した！✨', { body: 'クマモルが育ったよ！' });
+        new Notification('進化した！✨', { body: 'くまもーるんが育ったよ！' });
         playBeep(1);
       }
     });
