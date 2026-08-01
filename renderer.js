@@ -189,6 +189,17 @@ if (timer) {
   });
 }
 
+// アプリ名の横にバージョンを出す（main プロセスの app.getVersion() が真の値）
+const appVersionEl = document.getElementById('app-version');
+if (appVersionEl && window.kumamorunAPI?.getVersion) {
+  window.kumamorunAPI
+    .getVersion()
+    .then((v) => {
+      if (v) appVersionEl.textContent = `v${v}`;
+    })
+    .catch(() => {});
+}
+
 const account = document.getElementById('account');
 if (account) {
   account.addEventListener('click', () => {

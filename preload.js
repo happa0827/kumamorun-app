@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // アラームに気づけるようにするためのもの。
 contextBridge.exposeInMainWorld('kumamorunAPI', {
   surfaceWindow: () => ipcRenderer.send('surface-window'),
+  getVersion: () => ipcRenderer.invoke('app:version'),
   setFullscreen: (on) => ipcRenderer.send('set-fullscreen', !!on),
 
   // ミニモード（残り時間だけの小さいウィンドウ）

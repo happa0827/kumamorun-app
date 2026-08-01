@@ -62,6 +62,20 @@ body {
   justify-content: space-between;
 }
 
+.brand-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+/* アプリ名の横に出すバージョン表記（例: v1.0.2） */
+.app-version {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
 .brand {
   font-size: 0.8rem;
   font-weight: 600;

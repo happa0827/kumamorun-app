@@ -156,6 +156,9 @@ if (!gotLock) {
     }
   });
 
+  // アプリのバージョン（package.json の version）を画面表示用に返す
+  ipcMain.handle('app:version', () => app.getVersion());
+
   // 集中モード: ウィンドウをOSフルスクリーンに切り替える
   ipcMain.on('set-fullscreen', (_e, on) => {
     if (mainWindow) mainWindow.setFullScreen(!!on);
