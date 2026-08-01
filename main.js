@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session, screen } = require('electron');
 const path = require('path');
 
 // アップデートチェック（v3 は名前付きエクスポート）
@@ -9,8 +9,17 @@ updateElectronApp();
 app.setAppUserModelId('com.kumamorun.app');
 
 let mainWindow = null;
+let miniWindow = null;
 let tray = null;
 let isQuitting = false;
+
+// ミニモード（残り時間だけの小さい常時最前面ウィンドウ）
+const MINI_WIDTH = 240;
+const MINI_HEIGHT = 100;
+// セッション中に動かした位置を覚えておき、開き直しても同じ場所に出す
+let miniBounds = null;
+// メインウィンドウから届いた最新の表示内容。ミニを開いた直後に流し込むため保持する。
+let lastMiniText = { label: '', remaining: '-' };
 
 // --hidden 付き（自動起動時）は画面を出さずにバックグラウンドで開始する
 const startHidden = process.argv.includes('--hidden');
@@ -36,6 +45,58 @@ const createWindow = () => {
       e.preventDefault();
       mainWindow.hide();
     }
+  });
+};
+
+// ミニモードのウィンドウ。枠なし・背景透過・常に最前面で、残り時間だけを出す。
+const createMiniWindow = () => {
+  if (miniWindow) {
+    miniWindow.show();
+    return;
+  }
+
+  // 既定位置は作業領域の右下（タスクバーを避ける）
+  const { workArea } = screen.getPrimaryDisplay();
+  const x = miniBounds ? miniBounds.x : workArea.x + workArea.width - MINI_WIDTH - 24;
+  const y = miniBounds ? miniBounds.y : workArea.y + workArea.height - MINI_HEIGHT - 24;
+
+  miniWindow = new BrowserWindow({
+    width: MINI_WIDTH,
+    height: MINI_HEIGHT,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      backgroundThrottling: false,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  miniWindow.loadFile('mini.html');
+
+  // 読み込み完了時点の最新値を流し込む（開いた瞬間に "-" が出ないように）
+  miniWindow.webContents.on('did-finish-load', () => {
+    if (miniWindow) miniWindow.webContents.send('mini:text', lastMiniText);
+  });
+
+  miniWindow.on('move', () => {
+    if (miniWindow) miniBounds = miniWindow.getBounds();
+  });
+
+  // 閉じたら（✕ でも Alt+F4 でも）必ずメインウィンドウへ戻す
+  miniWindow.on('closed', () => {
+    miniWindow = null;
+    if (isQuitting || !mainWindow) return;
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('mini:closed');
   });
 };
 
@@ -87,6 +148,8 @@ if (!gotLock) {
 
   // タイマー完了時、非表示（トレイ常駐）でもウィンドウを前面に出して確実に気づかせる
   ipcMain.on('surface-window', () => {
+    // ミニモード中の完走はミニを畳んでメインを出す（closed ハンドラが表示まで面倒を見る）
+    if (miniWindow) miniWindow.close();
     if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();
@@ -96,6 +159,22 @@ if (!gotLock) {
   // 集中モード: ウィンドウをOSフルスクリーンに切り替える
   ipcMain.on('set-fullscreen', (_e, on) => {
     if (mainWindow) mainWindow.setFullScreen(!!on);
+  });
+
+  // ミニモード: メインを隠して、残り時間だけの小さいウィンドウに切り替える
+  ipcMain.on('mini:open', () => {
+    createMiniWindow();
+    if (mainWindow) mainWindow.hide();
+  });
+
+  ipcMain.on('mini:close', () => {
+    if (miniWindow) miniWindow.close();
+  });
+
+  // メインウィンドウの #remaining / #label が変わるたびに届く表示内容を中継する
+  ipcMain.on('mini:sync', (_e, payload) => {
+    if (payload) lastMiniText = payload;
+    if (miniWindow) miniWindow.webContents.send('mini:text', lastMiniText);
   });
 
   app.whenReady().then(() => {

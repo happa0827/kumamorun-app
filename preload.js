@@ -6,4 +6,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kumamorunAPI', {
   surfaceWindow: () => ipcRenderer.send('surface-window'),
   setFullscreen: (on) => ipcRenderer.send('set-fullscreen', !!on),
+
+  // ミニモード（残り時間だけの小さいウィンドウ）
+  // 送る側＝メインウィンドウ、受け取る側＝mini.html。どちらもこの preload を使う。
+  openMini: () => ipcRenderer.send('mini:open'),
+  closeMini: () => ipcRenderer.send('mini:close'),
+  syncMini: (payload) => ipcRenderer.send('mini:sync', payload),
+  onMiniText: (cb) => ipcRenderer.on('mini:text', (_e, payload) => cb(payload || {})),
+  onMiniClosed: (cb) => ipcRenderer.on('mini:closed', () => cb()),
 });

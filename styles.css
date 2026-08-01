@@ -716,3 +716,71 @@ select {
   background: var(--surface-hover);
   color: var(--text);
 }
+
+/* ===== ミニモード（mini.html: 枠なし・背景透過の小さいウィンドウ） ===== */
+/* ウィンドウが透過なので body の背景は消す。余白は影を出すための逃げ。 */
+.mini-body {
+  background: none;
+  min-height: 0;
+  padding: 6px;
+}
+
+.mini-card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0 1.4rem;
+  background: linear-gradient(180deg, #16161c 0%, #0d0d11 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  /* タイトルバーがないので、カード自体を掴んでウィンドウを動かせるようにする */
+  -webkit-app-region: drag;
+  cursor: move;
+}
+
+.mini-label {
+  max-width: 100%;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-remaining {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  text-shadow: 0 0 24px var(--accent-glow);
+}
+
+.mini-exit {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  padding: 0 5px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  /* ドラッグ領域の中でもボタンとして押せるようにする */
+  -webkit-app-region: no-drag;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mini-exit:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}

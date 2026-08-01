@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self';"
+    />
+    <title>Kumamorun</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="mini-body">
+    <div class="mini-card" title="ドラッグで移動できます">
+      <button id="mini-exit" class="mini-exit" title="元の画面に戻る">✕</button>
+      <span id="mini-label" class="mini-label"></span>
+      <span id="mini-remaining" class="mini-remaining">-</span>
+    </div>
+
+    <script src="mini.js" defer></script>
+  </body>
+</html>

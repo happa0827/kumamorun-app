@@ -261,6 +261,39 @@ if (remainingEl) {
     });
   }
 
+  // --- ミニモード: 残り時間だけの小さいウィンドウを常に最前面に出す ---
+  // 集中モードと同じく #remaining・#label をミラーするだけ。違いは表示先が
+  // 別ウィンドウ（mini.html）なので、main プロセス経由で文字列を送ること。
+  const miniBtn = document.getElementById('mini');
+  if (miniBtn && window.kumamorunAPI) {
+    let miniActive = false;
+
+    const syncMini = () => {
+      if (!miniActive) return;
+      window.kumamorunAPI.syncMini({
+        label: labelEl ? labelEl.textContent : '',
+        remaining: remainingEl.textContent,
+      });
+    };
+    const miniObserver = new MutationObserver(syncMini);
+    miniObserver.observe(remainingEl, { childList: true, characterData: true, subtree: true });
+    if (labelEl) {
+      miniObserver.observe(labelEl, { childList: true, characterData: true, subtree: true });
+    }
+
+    miniBtn.addEventListener('click', () => {
+      miniActive = true;
+      // ミニウィンドウの読み込み前でも main 側が最新値を保持して流し込んでくれる
+      syncMini();
+      window.kumamorunAPI.openMini();
+    });
+
+    // ミニを閉じた（メインへ戻った）ら中継を止める
+    window.kumamorunAPI.onMiniClosed(() => {
+      miniActive = false;
+    });
+  }
+
   // 稼働中タイマーの状態を保存するキー（ページ遷移をまたいで継続させる）
   // { label, duration, running, endAt, remaining, warned, finished, eyeBreaksSent }
   const TIMER_KEY = 'timerState';
@@ -346,10 +379,13 @@ if (remainingEl) {
 
   // --- 進化・お花の仕組み ---
   // 「その日、3分以内に休憩を押せなかった回数が0回」なら翌日にキャラが進化。
-  // 7回進化すると開花し、お花を獲得して進化カウントは0に戻る。
-  const EVOLVE_MAX = 7; // この回数の進化で開花
+  // 6回進化すると開花し、お花を獲得して進化カウントは0に戻る。
+  // （5=つぼみ大きく の次が開花。成長画像の枚数と一致する）
+  const EVOLVE_MAX = 6; // この回数の進化で開花
 
-  // 成長段階の画像（0=種子 … 5=つぼみ大きく）。評価値6も最後の画像を流用する。
+  // 成長段階の画像（0=種子 … 5=つぼみ大きく）。5 の次の進化で開花する。
+  // 開花すると進化は0に戻るので、次のサイクルはまた種子から始まる。
+  // ※ 仕様変更前のアカウントに残る evolution=6 は、表示だけ最後の画像へ丸める（下の Math.min）。
   const GROWTH_IMAGES = [
     'src/evo/01_種子.png',
     'src/evo/02_子葉.png',
