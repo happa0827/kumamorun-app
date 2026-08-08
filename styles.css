@@ -316,6 +316,7 @@ input[type="number"],
 input[type="email"],
 input[type="password"],
 input[type="time"],
+input[type="text"],
 select {
   width: 100%;
   padding: 0.7rem 0.85rem;
@@ -436,9 +437,24 @@ select {
   letter-spacing: 0.04em;
 }
 
-/* キー入力待ちの状態を分かるようにする */
-.shortcut-row input:focus {
-  border-color: var(--accent-2);
+.range-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.range-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent-2);
+  cursor: pointer;
+}
+
+.range-value {
+  min-width: 3rem;
+  text-align: right;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ===== Auth ===== */

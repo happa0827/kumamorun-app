@@ -10,6 +10,7 @@ const {
   globalShortcut,
 } = require('electron');
 const path = require('path');
+const { execFile } = require('child_process');
 
 // アップデートチェック（v3 は名前付きエクスポート）
 const { updateElectronApp } = require('update-electron-app');
@@ -30,6 +31,52 @@ const MINI_HEIGHT = 100;
 let miniBounds = null;
 // メインウィンドウから届いた最新の表示内容。ミニを開いた直後に流し込むため保持する。
 let lastMiniText = { label: '', remaining: '-' };
+
+// Windows の音声合成（SAPI）に WAV を作らせて base64 で返す。
+// レンダラーの speechSynthesis を直接使うと音量の上限が 1.0 で頭打ちになるため、
+// 音声データを受け取って Web Audio の GainNode を通す形にしている（renderer 側で増幅）。
+// 読み上げる文字列は引数ではなく環境変数で渡す（引用符の取り違えを避けるため）。
+const TTS_SCRIPT = `
+Add-Type -AssemblyName System.Speech
+$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$ja = $synth.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture.Name -eq 'ja-JP' } | Select-Object -First 1
+if ($ja) { $synth.SelectVoice($ja.VoiceInfo.Name) }
+$synth.Rate = 1
+$synth.Volume = 100
+$stream = New-Object System.IO.MemoryStream
+$synth.SetOutputToWaveStream($stream)
+$synth.Speak($env:KUMAMORUN_TTS_TEXT)
+$synth.Dispose()
+[Console]::Out.Write([Convert]::ToBase64String($stream.ToArray()))
+`;
+
+const synthesizeSpeech = (text) =>
+  new Promise((resolve) => {
+    if (process.platform !== 'win32' || !text) {
+      resolve(null);
+      return;
+    }
+    // -EncodedCommand（UTF-16LE の base64）で渡すと、改行や記号のエスケープを気にせずに済む
+    const encoded = Buffer.from(TTS_SCRIPT, 'utf16le').toString('base64');
+    execFile(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+      {
+        env: { ...process.env, KUMAMORUN_TTS_TEXT: text },
+        maxBuffer: 32 * 1024 * 1024,
+        windowsHide: true,
+      },
+      (err, stdout) => {
+        if (err) {
+          // 失敗しても落とさない。レンダラー側が speechSynthesis に切り替える。
+          console.log('音声合成に失敗しました', err);
+          resolve(null);
+          return;
+        }
+        resolve(stdout.trim());
+      },
+    );
+  });
 
 // 残り時間の読み上げを呼び出すグローバルショートカット。
 // 設定は renderer の localStorage にあるので、起動時と設定保存時に renderer から送ってもらう。
@@ -213,6 +260,9 @@ if (!gotLock) {
 
   // 読み上げショートカットの登録・変更（renderer の設定が唯一の持ち主）
   ipcMain.handle('shortcut:speak', (_e, accelerator) => setSpeakShortcut(accelerator || ''));
+
+  // 読み上げる文章を WAV（base64）にして返す。鳴らすのは renderer。
+  ipcMain.handle('speak:wav', (_e, text) => synthesizeSpeech(String(text || '')));
 
   // メインウィンドウの #remaining / #label が変わるたびに届く表示内容を中継する
   ipcMain.on('mini:sync', (_e, payload) => {

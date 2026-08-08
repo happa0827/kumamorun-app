@@ -224,6 +224,13 @@ const getSpeakShortcut = () => {
 const shortcutLabel = (accelerator) =>
   accelerator ? accelerator.replace('CommandOrControl', 'Ctrl') : '無効';
 
+// 読み上げの音量（0〜100%）。0 なら読み上げない。
+const DEFAULT_SPEAK_VOLUME = 100;
+const getSpeakVolume = () => {
+  const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  return saved.speakVolume == null ? DEFAULT_SPEAK_VOLUME : saved.speakVolume;
+};
+
 // 画面に出ている文字（#remaining / #label）を、そのまま読める日本語に直す。
 // 表示ロジックには手を入れないので、昼休憩・境界カウントダウン・休憩の猶予も
 // 集中モード／ミニモードと同じようにそのまま読み上げられる。
@@ -256,19 +263,82 @@ const speechFromTimerState = () => {
   return 'タイマーは動いていません';
 };
 
-const speak = (text) => {
+// 音量100%のときの増幅率。speechSynthesis 直読みだと 1.0 が上限で小さかったため、
+// main から受け取った WAV を Web Audio に通して 1.0 を超えて増幅する。
+// 上げすぎて歪まないよう、増幅の後ろにリミッター（DynamicsCompressor）を挟む。
+const SPEAK_MAX_GAIN = 4;
+// 読み上げ中の音声。連打されたら前の読み上げを止める。
+let speakingSource = null;
+
+// SAPI 経由が使えなかったときの控え。音量は 1.0 が上限なので大きくはできない。
+const speakWithBrowser = (text, volume) => {
+  if (!window.speechSynthesis) {
+    console.log('読み上げに対応していません');
+    return;
+  }
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'ja-JP';
+  utterance.rate = 1.1;
+  utterance.volume = Math.min(1, volume / 100);
+  const ja = window.speechSynthesis.getVoices().find((v) => (v.lang || '').startsWith('ja'));
+  if (ja) utterance.voice = ja;
+  window.speechSynthesis.speak(utterance);
+};
+
+// volumeOverride（0〜100）を渡すと設定より優先する（設定画面のテスト再生用）。
+const speak = async (text, volumeOverride) => {
+  const volume = volumeOverride === undefined ? getSpeakVolume() : volumeOverride;
+  if (!volume) return; // 音量0%は読み上げない
   try {
-    if (!window.speechSynthesis) {
-      console.log('読み上げに対応していません');
+    // Windows の音声合成に WAV を作ってもらう（数百ミリ秒かかる）
+    const base64 = window.kumamorunAPI?.speakWav
+      ? await window.kumamorunAPI.speakWav(text)
+      : null;
+    if (!base64) {
+      speakWithBrowser(text, volume);
       return;
     }
-    window.speechSynthesis.cancel(); // 連打しても最後の1回だけ読む
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.rate = 1.1;
-    const ja = window.speechSynthesis.getVoices().find((v) => (v.lang || '').startsWith('ja'));
-    if (ja) utterance.voice = ja;
-    window.speechSynthesis.speak(utterance);
+
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // アラーム音と同じく、設定で選ばれた出力先スピーカーから鳴らす
+    const speakerId = getSpeakerId();
+    if (speakerId && ctx.setSinkId) {
+      try {
+        await ctx.setSinkId(speakerId);
+      } catch (e) {
+        console.log('スピーカーの切り替えに失敗しました（既定スピーカーで鳴らします）', e);
+      }
+    }
+    if (ctx.state === 'suspended' && ctx.resume) await ctx.resume();
+
+    const buffer = await ctx.decodeAudioData(bytes.buffer);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const gain = ctx.createGain();
+    gain.gain.value = (volume / 100) * SPEAK_MAX_GAIN;
+
+    // 増幅で振り切れた分を潰して、割れた音にならないようにする
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.1;
+
+    source.connect(gain);
+    gain.connect(limiter);
+    limiter.connect(ctx.destination);
+
+    if (speakingSource) speakingSource.stop();
+    speakingSource = source;
+    source.onended = () => {
+      if (speakingSource === source) speakingSource = null;
+      ctx.close();
+    };
+    source.start();
     console.log('読み上げました', text);
   } catch (e) {
     console.log('読み上げに失敗しました', e);
@@ -1043,6 +1113,19 @@ if (saveBtn) {
   const defaultHint = shortcutHint ? shortcutHint.textContent : '';
   let speakShortcut = getSpeakShortcut();
 
+  // 読み上げの音量スライダー。テスト再生には保存前のスライダーの値を使う。
+  const volumeInput = document.getElementById('speak-volume');
+  const volumeValueEl = document.getElementById('speak-volume-value');
+  const currentVolume = () => (volumeInput ? Number(volumeInput.value) : getSpeakVolume());
+  if (volumeInput) {
+    volumeInput.value = getSpeakVolume();
+    const renderVolume = () => {
+      if (volumeValueEl) volumeValueEl.textContent = `${volumeInput.value}%`;
+    };
+    volumeInput.addEventListener('input', renderVolume);
+    renderVolume();
+  }
+
   if (shortcutInput) {
     const renderShortcut = () => {
       shortcutInput.value = shortcutLabel(speakShortcut);
@@ -1085,7 +1168,9 @@ if (saveBtn) {
 
     // 押したときにどう読まれるかを、キーを登録する前に確かめられるようにする
     if (shortcutTestBtn) {
-      shortcutTestBtn.addEventListener('click', () => speak(speechFromTimerState()));
+      shortcutTestBtn.addEventListener('click', () =>
+        speak(speechFromTimerState(), currentVolume()),
+      );
     }
 
     renderShortcut();
@@ -1106,9 +1191,10 @@ if (saveBtn) {
     const breakTime = Number(breakInput.value);
     const notify20 = notify20Input ? notify20Input.checked : false;
     const speakerId = speakerSelect ? speakerSelect.value : '';
+    const speakVolume = currentVolume();
     localStorage.setItem(
       SETTINGS_KEY,
-      JSON.stringify({ play, break: breakTime, notify20, speakerId, speakShortcut }),
+      JSON.stringify({ play, break: breakTime, notify20, speakerId, speakShortcut, speakVolume }),
     );
     console.log('設定を保存しました', {
       play,
@@ -1116,6 +1202,7 @@ if (saveBtn) {
       notify20,
       speakerId,
       speakShortcut,
+      speakVolume,
     });
     window.location.href = 'index.html';
   });

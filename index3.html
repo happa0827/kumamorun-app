@@ -58,6 +58,13 @@
             <button id="speak-shortcut-clear" class="btn btn-ghost btn-sm">無効</button>
           </div>
         </div>
+        <div class="field">
+          <span class="field-label">読み上げの音量</span>
+          <div class="range-row">
+            <input type="range" id="speak-volume" min="0" max="100" step="5" />
+            <span id="speak-volume-value" class="range-value">100%</span>
+          </div>
+        </div>
         <p class="hint" id="speak-shortcut-hint">
           入力欄をクリックしてから、使いたいキーを押してください（Ctrl / Alt / Shift のどれかと、英数字か
           F1〜F12 の組み合わせ）。他のアプリで作業中でも押せば残り時間を読み上げます。
