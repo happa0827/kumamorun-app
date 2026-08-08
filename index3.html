@@ -48,6 +48,22 @@
         </div>
       </div>
 
+      <div class="section">
+        <span class="section-title">残り時間の読み上げ</span>
+        <div class="field">
+          <span class="field-label">読み上げのショートカットキー</span>
+          <div class="shortcut-row">
+            <input type="text" id="speak-shortcut" readonly placeholder="クリックしてキーを押す" />
+            <button id="speak-shortcut-test" class="btn btn-ghost btn-sm">テスト</button>
+            <button id="speak-shortcut-clear" class="btn btn-ghost btn-sm">無効</button>
+          </div>
+        </div>
+        <p class="hint" id="speak-shortcut-hint">
+          入力欄をクリックしてから、使いたいキーを押してください（Ctrl / Alt / Shift のどれかと、英数字か
+          F1〜F12 の組み合わせ）。他のアプリで作業中でも押せば残り時間を読み上げます。
+        </p>
+      </div>
+
       <button id="save" class="btn btn-primary btn-block">保存</button>
     </div>
     <script src="bundle.js" defer></script>

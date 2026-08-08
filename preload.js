@@ -15,4 +15,9 @@ contextBridge.exposeInMainWorld('kumamorunAPI', {
   syncMini: (payload) => ipcRenderer.send('mini:sync', payload),
   onMiniText: (cb) => ipcRenderer.on('mini:text', (_e, payload) => cb(payload || {})),
   onMiniClosed: (cb) => ipcRenderer.on('mini:closed', () => cb()),
+
+  // 残り時間の読み上げ。キーの登録は main（グローバルショートカット）、
+  // 読み上げそのものは Web Speech API が使えるレンダラー側で行う。
+  registerSpeakShortcut: (accelerator) => ipcRenderer.invoke('shortcut:speak', accelerator),
+  onSpeakRemaining: (cb) => ipcRenderer.on('speak-remaining', () => cb()),
 });

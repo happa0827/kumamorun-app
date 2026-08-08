@@ -423,6 +423,24 @@ select {
   flex: 1;
 }
 
+.shortcut-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.shortcut-row input {
+  flex: 1;
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+/* キー入力待ちの状態を分かるようにする */
+.shortcut-row input:focus {
+  border-color: var(--accent-2);
+}
+
 /* ===== Auth ===== */
 .auth-card {
   display: flex;

@@ -1,4 +1,14 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, session, screen } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  nativeImage,
+  ipcMain,
+  session,
+  screen,
+  globalShortcut,
+} = require('electron');
 const path = require('path');
 
 // アップデートチェック（v3 は名前付きエクスポート）
@@ -20,6 +30,33 @@ const MINI_HEIGHT = 100;
 let miniBounds = null;
 // メインウィンドウから届いた最新の表示内容。ミニを開いた直後に流し込むため保持する。
 let lastMiniText = { label: '', remaining: '-' };
+
+// 残り時間の読み上げを呼び出すグローバルショートカット。
+// 設定は renderer の localStorage にあるので、起動時と設定保存時に renderer から送ってもらう。
+let speakShortcut = null;
+
+// 読み上げショートカットを付け替える。accelerator が空なら無効にするだけ。
+// 戻り値の ok が false なら、他のアプリがそのキーを既に押さえている。
+const setSpeakShortcut = (accelerator) => {
+  if (speakShortcut) {
+    globalShortcut.unregister(speakShortcut);
+    speakShortcut = null;
+  }
+  if (!accelerator) return { ok: true };
+  try {
+    const ok = globalShortcut.register(accelerator, () => {
+      // 読み上げは Web Speech API を使うのでレンダラーにやってもらう。
+      // ウィンドウが非表示（トレイ常駐・ミニモード）でも動く。
+      if (mainWindow) mainWindow.webContents.send('speak-remaining');
+    });
+    if (ok) speakShortcut = accelerator;
+    return { ok };
+  } catch (e) {
+    // accelerator の書式が不正だと register が例外を投げる
+    console.log('ショートカットを登録できませんでした', accelerator, e);
+    return { ok: false };
+  }
+};
 
 // --hidden 付き（自動起動時）は画面を出さずにバックグラウンドで開始する
 const startHidden = process.argv.includes('--hidden');
@@ -174,6 +211,9 @@ if (!gotLock) {
     if (miniWindow) miniWindow.close();
   });
 
+  // 読み上げショートカットの登録・変更（renderer の設定が唯一の持ち主）
+  ipcMain.handle('shortcut:speak', (_e, accelerator) => setSpeakShortcut(accelerator || ''));
+
   // メインウィンドウの #remaining / #label が変わるたびに届く表示内容を中継する
   ipcMain.on('mini:sync', (_e, payload) => {
     if (payload) lastMiniText = payload;
@@ -202,5 +242,10 @@ if (!gotLock) {
   // 全ウィンドウが閉じても終了しない（トレイに常駐して動作を継続）
   app.on('window-all-closed', () => {
     // 何もしない
+  });
+
+  // 終了時にグローバルショートカットを OS へ返す
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
   });
 }

@@ -18,6 +18,9 @@ const db = getDatabase(firebaseApp);
 const STORAGE_KEY = 'countdown';
 // 遊び/休憩の既定時間を保存するキー
 const SETTINGS_KEY = 'settings';
+// 稼働中タイマーの状態を保存するキー（ページ遷移をまたいで継続させる）
+// { label, duration, running, endAt, remaining, warned, finished, eyeBreaksSent }
+const TIMER_KEY = 'timerState';
 // スタート制限（昼休憩・完全終了）の設定を保存するキー。平日/週末で別々に持つ。
 // { weekday: { lunchStart, lunchEnd, endTime }, weekend: { lunchStart, lunchEnd, endTime } }
 const RESTRICTIONS_KEY = 'restrictions';
@@ -208,6 +211,81 @@ const playWarnBeeps = () =>
     { freq: 1174.66, at: 0.34, dur: 0.1 },
   ]);
 
+// --- 残り時間の読み上げ（グローバルショートカット） ---
+// キーの設定は localStorage、キーの登録は main プロセス（globalShortcut）、
+// 読み上げ自体は Web Speech API が使えるレンダラー側、と役割を分けている。
+// 既定は Ctrl+Alt+T。空文字なら読み上げ無効。
+const DEFAULT_SPEAK_SHORTCUT = 'CommandOrControl+Alt+T';
+const getSpeakShortcut = () => {
+  const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  return saved.speakShortcut === undefined ? DEFAULT_SPEAK_SHORTCUT : saved.speakShortcut;
+};
+// Electron の accelerator を画面表示用の文字にする
+const shortcutLabel = (accelerator) =>
+  accelerator ? accelerator.replace('CommandOrControl', 'Ctrl') : '無効';
+
+// 画面に出ている文字（#remaining / #label）を、そのまま読める日本語に直す。
+// 表示ロジックには手を入れないので、昼休憩・境界カウントダウン・休憩の猶予も
+// 集中モード／ミニモードと同じようにそのまま読み上げられる。
+const speechForDisplay = (label, remaining) => {
+  const text = (remaining || '').trim();
+  if (!text || text === '-') return 'タイマーは動いていません';
+  if (text === '時間切れ！') return '時間切れです';
+  const mmss = text.match(/^(\d+):(\d{2})$/);
+  if (!mmss) return text; // 「昼休憩の時間です」など、そのままで読める文言
+  const min = Number(mmss[1]);
+  const sec = Number(mmss[2]);
+  const time = `${min ? `${min}分` : ''}${sec ? `${sec}秒` : ''}` || '0秒';
+  // 「遊び（昼休憩まで）」の括弧は読点にした方が自然に読まれる
+  const name = (label || '').replace('（', '、').replace('）', '');
+  return name ? `${name}、残り${time}です` : `残り${time}です`;
+};
+
+// #remaining が無いページ（設定画面など）にいるときの控え。
+// 昼休憩などの表示の切り替えまでは再現しないが、稼働中の残り時間は答えられる。
+const speechFromTimerState = () => {
+  const state = JSON.parse(localStorage.getItem(TIMER_KEY) || 'null');
+  if (!state || state.finished) return 'タイマーは動いていません';
+  if (state.running && state.endAt) {
+    const left = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
+    return speechForDisplay(state.label, formatTime(left));
+  }
+  if (state.remaining > 0) {
+    return `${state.label}、一時停止中。${speechForDisplay('', formatTime(state.remaining))}`;
+  }
+  return 'タイマーは動いていません';
+};
+
+const speak = (text) => {
+  try {
+    if (!window.speechSynthesis) {
+      console.log('読み上げに対応していません');
+      return;
+    }
+    window.speechSynthesis.cancel(); // 連打しても最後の1回だけ読む
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ja-JP';
+    utterance.rate = 1.1;
+    const ja = window.speechSynthesis.getVoices().find((v) => (v.lang || '').startsWith('ja'));
+    if (ja) utterance.voice = ja;
+    window.speechSynthesis.speak(utterance);
+    console.log('読み上げました', text);
+  } catch (e) {
+    console.log('読み上げに失敗しました', e);
+  }
+};
+
+if (window.kumamorunAPI?.registerSpeakShortcut) {
+  // どのページを開いたときも登録し直す（同じキーなら付け替えるだけなので害はない）
+  window.kumamorunAPI.registerSpeakShortcut(getSpeakShortcut());
+
+  window.kumamorunAPI.onSpeakRemaining(() => {
+    const el = document.getElementById('remaining');
+    const labelText = document.getElementById('label')?.textContent;
+    speak(el ? speechForDisplay(labelText, el.textContent) : speechFromTimerState());
+  });
+}
+
 // --- index.html: スタートで設定画面へ / アカウント画面へ / 渡されたタイマーを表示 ---
 const timer = document.getElementById('timer');
 if (timer) {
@@ -332,9 +410,6 @@ if (remainingEl) {
     });
   }
 
-  // 稼働中タイマーの状態を保存するキー（ページ遷移をまたいで継続させる）
-  // { label, duration, running, endAt, remaining, warned, finished, eyeBreaksSent }
-  const TIMER_KEY = 'timerState';
   const loadTimerState = () => JSON.parse(localStorage.getItem(TIMER_KEY) || 'null');
   const saveTimerState = (s) => localStorage.setItem(TIMER_KEY, JSON.stringify(s));
 
@@ -960,16 +1035,88 @@ if (saveBtn) {
     });
   }
 
-  saveBtn.addEventListener('click', () => {
+  // 読み上げショートカットの入力。入力欄にフォーカスした状態で押したキーを拾う。
+  const shortcutInput = document.getElementById('speak-shortcut');
+  const shortcutTestBtn = document.getElementById('speak-shortcut-test');
+  const shortcutClearBtn = document.getElementById('speak-shortcut-clear');
+  const shortcutHint = document.getElementById('speak-shortcut-hint');
+  const defaultHint = shortcutHint ? shortcutHint.textContent : '';
+  let speakShortcut = getSpeakShortcut();
+
+  if (shortcutInput) {
+    const renderShortcut = () => {
+      shortcutInput.value = shortcutLabel(speakShortcut);
+    };
+    const showHint = (message) => {
+      if (shortcutHint) shortcutHint.textContent = message || defaultHint;
+    };
+
+    // 単体で使えるキーだけ受け付ける（修飾キーだけ、記号キーなどは弾く）
+    const accelKeyFromEvent = (e) => {
+      if (/^[a-zA-Z0-9]$/.test(e.key)) return e.key.toUpperCase();
+      if (/^F([1-9]|1[0-2])$/.test(e.key)) return e.key;
+      return null;
+    };
+
+    shortcutInput.addEventListener('keydown', (e) => {
+      e.preventDefault(); // 入力欄に文字が入らないようにする
+      const key = accelKeyFromEvent(e);
+      if (!key) return; // 修飾キーだけ押している最中など
+      const mods = [];
+      if (e.ctrlKey) mods.push('CommandOrControl');
+      if (e.altKey) mods.push('Alt');
+      if (e.shiftKey) mods.push('Shift');
+      if (!mods.length) {
+        showHint('Ctrl / Alt / Shift のどれかと組み合わせてください。');
+        return;
+      }
+      speakShortcut = [...mods, key].join('+');
+      renderShortcut();
+      showHint('');
+    });
+
+    if (shortcutClearBtn) {
+      shortcutClearBtn.addEventListener('click', () => {
+        speakShortcut = '';
+        renderShortcut();
+        showHint('読み上げを無効にしました。');
+      });
+    }
+
+    // 押したときにどう読まれるかを、キーを登録する前に確かめられるようにする
+    if (shortcutTestBtn) {
+      shortcutTestBtn.addEventListener('click', () => speak(speechFromTimerState()));
+    }
+
+    renderShortcut();
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    // キーの登録を先に試す。他アプリが使用中なら保存せずここに留まる。
+    if (window.kumamorunAPI?.registerSpeakShortcut) {
+      const result = await window.kumamorunAPI.registerSpeakShortcut(speakShortcut);
+      if (result && !result.ok) {
+        alert(
+          `${shortcutLabel(speakShortcut)} は他のアプリが使用中のため登録できませんでした。別のキーを選んでください。`,
+        );
+        return;
+      }
+    }
     const play = Number(playInput.value);
     const breakTime = Number(breakInput.value);
     const notify20 = notify20Input ? notify20Input.checked : false;
     const speakerId = speakerSelect ? speakerSelect.value : '';
     localStorage.setItem(
       SETTINGS_KEY,
-      JSON.stringify({ play, break: breakTime, notify20, speakerId }),
+      JSON.stringify({ play, break: breakTime, notify20, speakerId, speakShortcut }),
     );
-    console.log('設定を保存しました', { play, break: breakTime, notify20, speakerId });
+    console.log('設定を保存しました', {
+      play,
+      break: breakTime,
+      notify20,
+      speakerId,
+      speakShortcut,
+    });
     window.location.href = 'index.html';
   });
 }
