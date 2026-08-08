@@ -487,6 +487,7 @@ if (remainingEl) {
   // ※ settings は後方で定義されるため、ここでは localStorage から直接読む
   const notify20Enabled = !!JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}').notify20;
   const EYE_BREAK_INTERVAL_SEC = 20 * 60; // 20分ごと
+  const WARN_BEFORE_SEC = 5 * 60; // 「まもなく終了」を知らせる残り時間
 
   // 稼働中なら壁時計（終了時刻）から、停止中なら保存済み残り秒数から、残り秒を計算する
   const currentRemaining = (s) =>
@@ -824,8 +825,9 @@ if (remainingEl) {
 
   // 保存済みのタイマー状態を表示・駆動する（ページ遷移をまたいで継続）
   const runActiveTimer = (state) => {
-    // 「まもなく終了」を知らせる残り秒数（全体の20%）
-    const warnAt = Math.max(1, Math.floor(state.duration * 0.2));
+    // 「まもなく終了」は残り5分で知らせる。
+    // 5分以下のタイマーは開始した瞬間に鳴るだけなので、知らせない（0 = 無効）。
+    const warnAt = state.duration > WARN_BEFORE_SEC ? WARN_BEFORE_SEC : 0;
 
     // 残り時間とラベルを画面に反映する。
     // 遊びタイマー中に、タイマー終了より先に昼休憩開始/完全終了が来るなら、
@@ -926,10 +928,12 @@ if (remainingEl) {
         }
       }
       // 残りわずかになったら一度だけ知らせる
-      if (state.running && !state.warned && remaining > 0 && remaining <= warnAt) {
+      if (warnAt && state.running && !state.warned && remaining > 0 && remaining <= warnAt) {
         state.warned = true;
         saveTimerState(state);
-        new Notification(`${state.label} まもなく終了`, { body: `残り${warnAt}秒です` });
+        new Notification(`${state.label} まもなく終了`, {
+          body: `残り${warnAt / 60}分です`,
+        });
         playWarnBeeps();
       }
       if (remaining <= 0) finish();
