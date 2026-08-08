@@ -138,10 +138,11 @@ const formatTime = (totalSec) => {
 // 設定で選ばれた出力先スピーカーの deviceId（空文字なら OS の既定スピーカー）
 const getSpeakerId = () => JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}').speakerId || '';
 
-// 通知音（アラーム）を鳴らす。音声ファイル不要で Web Audio から生成する。
-// durationSec 秒のあいだ「ピッ・ピッ」と断続的に鳴らし続ける。
+// 通知音を鳴らす。音声ファイル不要で Web Audio から生成する。
+// notes = [{ freq, at, dur, type, volume }]（at / dur は秒）。1音につき1オシレータなので
+// 音ごとに高さも音色も変えられる。用途別の音は下の play〜 が組み立てる。
 // speakerIdOverride を渡すと設定より優先する（設定画面のテスト再生用）。
-const playBeep = async (durationSec = 10, speakerIdOverride) => {
+const playNotes = async (notes, speakerIdOverride) => {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     // 出力先スピーカーを切り替える（未指定・失敗時は既定スピーカーのまま鳴らす）
@@ -155,31 +156,57 @@ const playBeep = async (durationSec = 10, speakerIdOverride) => {
     }
     // 非表示ウィンドウでは AudioContext が suspended で始まり音が出ないことがあるため復帰させる
     if (ctx.state === 'suspended' && ctx.resume) await ctx.resume();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.value = 880; // 高めの「ピー」
-
-    // 0.4秒鳴らして0.3秒休む、を繰り返して断続ビープにする
-    const beepOn = 0.4;
-    const beepOff = 0.3;
-    const cycle = beepOn + beepOff;
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    for (let t = 0; t < durationSec; t += cycle) {
-      const start = ctx.currentTime + t;
-      gain.gain.setValueAtTime(0.2, start); // 鳴らす
-      gain.gain.setValueAtTime(0, start + beepOn); // 止める
-    }
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + durationSec);
+    const now = ctx.currentTime;
+    notes.forEach(({ freq, at, dur, type = 'sine', volume = 0.2 }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.value = freq;
+      // 出だしと終わりをわずかにフェードして「プツッ」というノイズを防ぐ
+      const fade = Math.min(0.01, dur / 4);
+      gain.gain.setValueAtTime(0, now + at);
+      gain.gain.linearRampToValueAtTime(volume, now + at + fade);
+      gain.gain.setValueAtTime(volume, now + at + dur - fade);
+      gain.gain.linearRampToValueAtTime(0, now + at + dur);
+      osc.start(now + at);
+      osc.stop(now + at + dur + 0.02);
+    });
     console.log('音を再生しました');
   } catch (e) {
     console.log('音の再生に失敗しました', e);
   }
 };
+
+// 完走・制限時刻の通過を知らせるアラーム。
+// 高めの「ピー・ピー」を durationSec 秒のあいだ断続的に鳴らし続ける。
+const playBeep = (durationSec = 10, speakerIdOverride) => {
+  const beepOn = 0.4;
+  const cycle = beepOn + 0.3; // 0.4秒鳴らして0.3秒休む
+  const notes = [];
+  for (let at = 0; at < durationSec; at += cycle) {
+    notes.push({ freq: 880, at, dur: Math.min(beepOn, durationSec - at) });
+  }
+  return playNotes(notes, speakerIdOverride);
+};
+
+// 20-20-20リマインダーの音。「目を上げて」という穏やかな合図なので、
+// 低めの三角波でやわらかい2音の上昇チャイムにする。
+// 「まもなく終了」とは音色・高さ・リズムのすべてを変えて聞き分けられるようにしている。
+const playEyeBreakChime = () =>
+  playNotes([
+    { freq: 523.25, at: 0, dur: 0.28, type: 'triangle', volume: 0.16 }, // C5
+    { freq: 659.25, at: 0.32, dur: 0.5, type: 'triangle', volume: 0.16 }, // E5
+  ]);
+
+// 「まもなく終了」の音。急かす合図なので、高めの短い3連ビープにする。
+const playWarnBeeps = () =>
+  playNotes([
+    { freq: 1174.66, at: 0, dur: 0.1 }, // D6
+    { freq: 1174.66, at: 0.17, dur: 0.1 },
+    { freq: 1174.66, at: 0.34, dur: 0.1 },
+  ]);
 
 // --- index.html: スタートで設定画面へ / アカウント画面へ / 渡されたタイマーを表示 ---
 const timer = document.getElementById('timer');
@@ -750,7 +777,7 @@ if (remainingEl) {
           new Notification('20-20-20ルール', {
             body: '20秒間、20フィート（約6m）先を見て目を休めましょう👀',
           });
-          playBeep(1);
+          playEyeBreakChime();
         }
       }
       // 残りわずかになったら一度だけ知らせる
@@ -758,7 +785,7 @@ if (remainingEl) {
         state.warned = true;
         saveTimerState(state);
         new Notification(`${state.label} まもなく終了`, { body: `残り${warnAt}秒です` });
-        playBeep(1);
+        playWarnBeeps();
       }
       if (remaining <= 0) finish();
     };
