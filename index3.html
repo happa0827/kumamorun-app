@@ -38,12 +38,39 @@
       </div>
 
       <div class="section">
-        <span class="section-title">サウンド</span>
+        <span class="section-title">音を出すスピーカー</span>
         <div class="field">
-          <span class="field-label">音を出すスピーカー</span>
+          <span class="field-label">スタート（遊び）が終わったとき</span>
+          <div class="speaker-row">
+            <select id="speaker-play"></select>
+            <button class="btn btn-ghost btn-sm" data-test-speaker="speaker-play">テスト</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">休憩が終わったとき</span>
+          <div class="speaker-row">
+            <select id="speaker-break"></select>
+            <button class="btn btn-ghost btn-sm" data-test-speaker="speaker-break">テスト</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">お知らせ（残り5分・20-20-20ルール）</span>
+          <div class="speaker-row">
+            <select id="speaker-notify"></select>
+            <button
+              class="btn btn-ghost btn-sm"
+              data-test-speaker="speaker-notify"
+              data-test-sound="notify"
+            >
+              テスト
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">その他（進化・スタート制限・読み上げ）</span>
           <div class="speaker-row">
             <select id="speaker"></select>
-            <button id="test-sound" class="btn btn-ghost btn-sm">テスト</button>
+            <button class="btn btn-ghost btn-sm" data-test-speaker="speaker">テスト</button>
           </div>
         </div>
       </div>

@@ -138,8 +138,20 @@ const formatTime = (totalSec) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-// 設定で選ばれた出力先スピーカーの deviceId（空文字なら OS の既定スピーカー）
-const getSpeakerId = () => JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}').speakerId || '';
+// 音の種類ごとの出力先スピーカーの deviceId（空文字なら OS の既定スピーカー）。
+// kind を渡さない＝その他の音（進化・開花・スタート制限・読み上げ）で、
+// これが以前からある共通の設定。未設定の種類は、その共通設定にならう。
+const SPEAKER_KEYS = {
+  play: 'speakerPlay', // 遊び（スタート）の完走
+  break: 'speakerBreak', // 休憩の完走
+  notify: 'speakerNotify', // お知らせ（残り5分・20-20-20ルール）
+};
+const getSpeakerId = (kind) => {
+  const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+  const shared = saved.speakerId || '';
+  const key = SPEAKER_KEYS[kind];
+  return key && saved[key] != null ? saved[key] : shared;
+};
 
 // 通知音を鳴らす。音声ファイル不要で Web Audio から生成する。
 // notes = [{ freq, at, dur, type, volume }]（at / dur は秒）。1音につき1オシレータなので
@@ -197,19 +209,25 @@ const playBeep = (durationSec = 10, speakerIdOverride) => {
 // 20-20-20リマインダーの音。「目を上げて」という穏やかな合図なので、
 // 低めの三角波でやわらかい2音の上昇チャイムにする。
 // 「まもなく終了」とは音色・高さ・リズムのすべてを変えて聞き分けられるようにしている。
-const playEyeBreakChime = () =>
-  playNotes([
-    { freq: 523.25, at: 0, dur: 0.28, type: 'triangle', volume: 0.16 }, // C5
-    { freq: 659.25, at: 0.32, dur: 0.5, type: 'triangle', volume: 0.16 }, // E5
-  ]);
+const playEyeBreakChime = (speakerIdOverride) =>
+  playNotes(
+    [
+      { freq: 523.25, at: 0, dur: 0.28, type: 'triangle', volume: 0.16 }, // C5
+      { freq: 659.25, at: 0.32, dur: 0.5, type: 'triangle', volume: 0.16 }, // E5
+    ],
+    speakerIdOverride === undefined ? getSpeakerId('notify') : speakerIdOverride,
+  );
 
 // 「まもなく終了」の音。急かす合図なので、高めの短い3連ビープにする。
-const playWarnBeeps = () =>
-  playNotes([
-    { freq: 1174.66, at: 0, dur: 0.1 }, // D6
-    { freq: 1174.66, at: 0.17, dur: 0.1 },
-    { freq: 1174.66, at: 0.34, dur: 0.1 },
-  ]);
+const playWarnBeeps = (speakerIdOverride) =>
+  playNotes(
+    [
+      { freq: 1174.66, at: 0, dur: 0.1 }, // D6
+      { freq: 1174.66, at: 0.17, dur: 0.1 },
+      { freq: 1174.66, at: 0.34, dur: 0.1 },
+    ],
+    speakerIdOverride === undefined ? getSpeakerId('notify') : speakerIdOverride,
+  );
 
 // --- 残り時間の読み上げ（グローバルショートカット） ---
 // キーの設定は localStorage、キーの登録は main プロセス（globalShortcut）、
@@ -887,7 +905,7 @@ if (remainingEl) {
       // 非表示（トレイ常駐）中でも気づけるようウィンドウを前面に出してから鳴らす
       if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
       new Notification(`${state.label} が終わりました`, { body: 'お疲れさまでした！' });
-      playBeep();
+      playBeep(10, getSpeakerId(state.label === '休憩' ? 'break' : 'play'));
       handleTimerFinished(state.label);
       // 遊び完走後は休憩の猶予（3分）の残りを表示し続ける
       if (state.label === '遊び') startRewardCountdown();
@@ -1058,8 +1076,6 @@ if (saveBtn) {
   const playInput = document.getElementById('play-time');
   const breakInput = document.getElementById('break-time');
   const notify20Input = document.getElementById('notify20');
-  const speakerSelect = document.getElementById('speaker');
-  const testSoundBtn = document.getElementById('test-sound');
 
   // 保存済みの設定があれば初期表示する
   const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
@@ -1067,10 +1083,19 @@ if (saveBtn) {
   if (saved.break != null) breakInput.value = saved.break;
   if (notify20Input) notify20Input.checked = !!saved.notify20;
 
+  // 音の種類ごとの出力先スピーカー。'speaker'（その他）が以前からある共通の設定で、
+  // 種類別が未設定のときはそれを引き継ぐ（前のバージョンからの移行）。
+  const SPEAKER_FIELDS = [
+    { id: 'speaker-play', key: 'speakerPlay' },
+    { id: 'speaker-break', key: 'speakerBreak' },
+    { id: 'speaker-notify', key: 'speakerNotify' },
+    { id: 'speaker', key: 'speakerId' },
+  ];
+
   // 出力先スピーカーの一覧を作る。
   // Chromium はマイク許可がないとデバイス名を空で返すため、空なら一度だけ許可を取って取り直す。
   const loadSpeakers = async () => {
-    if (!speakerSelect || !navigator.mediaDevices) return;
+    if (!navigator.mediaDevices) return;
     const listOutputs = async () =>
       (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
 
@@ -1085,29 +1110,38 @@ if (saveBtn) {
       }
     }
 
-    speakerSelect.innerHTML = '';
-    const addOption = (value, text) => {
-      const o = document.createElement('option');
-      o.value = value;
-      o.textContent = text;
-      speakerSelect.appendChild(o);
-    };
-    addOption('', '既定のスピーカー');
-    outputs.forEach((d, i) => {
-      if (d.deviceId === 'default') return; // 既定は上で用意済み
-      addOption(d.deviceId, d.label || `スピーカー ${i + 1}`);
+    SPEAKER_FIELDS.forEach(({ id, key }) => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      select.innerHTML = '';
+      const addOption = (value, text) => {
+        const o = document.createElement('option');
+        o.value = value;
+        o.textContent = text;
+        select.appendChild(o);
+      };
+      addOption('', '既定のスピーカー');
+      outputs.forEach((d, i) => {
+        if (d.deviceId === 'default') return; // 既定は上で用意済み
+        addOption(d.deviceId, d.label || `スピーカー ${i + 1}`);
+      });
+      // 保存済みの選択を復元する（機器が外れていれば既定に戻る）
+      const value = saved[key] != null ? saved[key] : saved.speakerId;
+      if (value) select.value = value;
     });
-    // 保存済みの選択を復元する（機器が外れていれば既定に戻る）
-    if (saved.speakerId) speakerSelect.value = saved.speakerId;
   };
   loadSpeakers();
 
-  // 選んだスピーカーから実際に音が出るか確認できるようにする
-  if (testSoundBtn) {
-    testSoundBtn.addEventListener('click', () => {
-      playBeep(1, speakerSelect ? speakerSelect.value : '');
+  // 選んだスピーカーから実際に音が出るか確認できるようにする。
+  // 種類ごとに実際に鳴る音でテストする（お知らせだけ音が違う）。
+  document.querySelectorAll('[data-test-speaker]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const select = document.getElementById(btn.dataset.testSpeaker);
+      const speakerId = select ? select.value : '';
+      if (btn.dataset.testSound === 'notify') playWarnBeeps(speakerId);
+      else playBeep(1, speakerId);
     });
-  }
+  });
 
   // 読み上げショートカットの入力。入力欄にフォーカスした状態で押したキーを拾う。
   const shortcutInput = document.getElementById('speak-shortcut');
@@ -1194,20 +1228,22 @@ if (saveBtn) {
     const play = Number(playInput.value);
     const breakTime = Number(breakInput.value);
     const notify20 = notify20Input ? notify20Input.checked : false;
-    const speakerId = speakerSelect ? speakerSelect.value : '';
+    const speakers = {};
+    SPEAKER_FIELDS.forEach(({ id, key }) => {
+      const select = document.getElementById(id);
+      speakers[key] = select ? select.value : '';
+    });
     const speakVolume = currentVolume();
-    localStorage.setItem(
-      SETTINGS_KEY,
-      JSON.stringify({ play, break: breakTime, notify20, speakerId, speakShortcut, speakVolume }),
-    );
-    console.log('設定を保存しました', {
+    const next = {
       play,
       break: breakTime,
       notify20,
-      speakerId,
+      ...speakers,
       speakShortcut,
       speakVolume,
-    });
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    console.log('設定を保存しました', next);
     window.location.href = 'index.html';
   });
 }
