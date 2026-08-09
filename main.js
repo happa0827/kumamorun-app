@@ -276,9 +276,11 @@ if (!gotLock) {
       callback(permission === 'media' || permission === 'notifications');
     });
 
-    // 既定のメニューバー（File / Edit / View …）を丸ごと外す。ウィンドウ生成前に呼ぶ。
-    // Alt キーでも出てこない代わりに、Ctrl+Shift+I などの既定ショートカットも無効になる。
-    Menu.setApplicationMenu(null);
+    // 既定のメニューバー（File / Edit / View …）は**配布版でだけ**外す。ウィンドウ生成前に呼ぶ。
+    // 外すと Alt キーでも出てこない代わりに、Ctrl+Shift+I（DevTools）や Ctrl+R（再読み込み）
+    // といった既定のアクセラレータも一緒に無効になる。開発中はそれらを使いたいので残す。
+    // app.isPackaged は `bun run start` や electron.exe . では false、インストール版で true。
+    if (app.isPackaged) Menu.setApplicationMenu(null);
 
     createWindow();
     createTray();

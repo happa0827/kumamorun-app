@@ -527,6 +527,11 @@ if (remainingEl) {
 
   // ログイン中ユーザーを保持し、進化・花をリアルタイム表示する
   let currentUser = null;
+
+  // クラウドの当日統計を取り込む前に、この端末で記録したか。
+  // 起動直後の休憩開始判定（handleRestStarted）は認証の復元より先に走るため、
+  // その分はまだ DB に無い。dirty なら DB で上書きせずローカルを押し上げる。
+  let dailyStatsDirty = false;
   onAuthStateChanged(auth, (user) => {
     currentUser = user;
     if (user) {
@@ -551,13 +556,19 @@ if (remainingEl) {
       // クラウドの当日統計を取り込んでから、日付が変わっていれば前日を評価する
       get(ref(db, `users/${user.uid}/dailyStats`))
         .then((snap) => {
-          const merged = mergeDailyStats(
-            JSON.parse(localStorage.getItem(DAILY_KEY) || 'null'),
-            snap.val(),
-          );
+          const cloud = snap.val();
+          const local = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
+          // 取り込み前にこの端末で記録していたら、その分は DB にまだ無い。
+          // 同じ日付なら DB で上書きせず、ローカルを採って DB 側を押し上げる。
+          const keepLocal = dailyStatsDirty && local && cloud && local.date === cloud.date;
+          const merged = keepLocal ? local : mergeDailyStats(local, cloud);
           if (merged) {
             localStorage.setItem(DAILY_KEY, JSON.stringify(merged));
-            set(ref(db, `users/${user.uid}/dailyStats`), merged);
+            // DB の値をそのまま採ったなら書き戻す必要はない。
+            // ローカルの方が新しい日付だったときだけ DB を更新する。
+            if (JSON.stringify(merged) !== JSON.stringify(cloud)) {
+              set(ref(db, `users/${user.uid}/dailyStats`), merged);
+            }
           }
           evaluateDailyRollover();
         })
@@ -721,19 +732,17 @@ if (remainingEl) {
     });
   };
 
-  // ローカルとクラウドの当日統計をマージする。
-  // 同じ日付なら回数の多い方を、日付が違えば新しい日付（YYYY-MM-DD の辞書順）を採用する。
-  const mergeDailyStats = (a, b) => {
-    if (!a) return b || null;
-    if (!b) return a;
-    if (a.date === b.date) {
-      return {
-        date: a.date,
-        plays: Math.max(a.plays, b.plays),
-        failures: Math.max(a.failures, b.failures),
-      };
-    }
-    return a.date > b.date ? a : b;
+  // ローカルとクラウドの当日統計をすり合わせる。**クラウド（DB）を正とする**。
+  // 同じ日付なら回数の多い方を採っていたが、他の端末で減った値が反映されず
+  // ローカルの古い数字が残り続けるので、DB の値をそのまま採用するようにした。
+  // 日付が違うときだけ新しい日付（YYYY-MM-DD の辞書順）を採る。古い日付の DB を
+  // 取り込むと当日の記録が消えるうえ、getDailyStats() が前日をもう一度評価して
+  // 二重に進化してしまうため、ここだけはローカルが新しければローカルを残す。
+  const mergeDailyStats = (local, cloud) => {
+    if (!cloud) return local || null; // DB に無ければ取り込むものが無い
+    if (!local) return cloud;
+    if (local.date === cloud.date) return cloud;
+    return local.date > cloud.date ? local : cloud;
   };
 
   // 今日の統計を取得する。日付が変わっていたら前日を評価してからリセットする。
@@ -767,6 +776,7 @@ if (remainingEl) {
 
   const saveDailyStats = (stats) => {
     localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
+    dailyStatsDirty = true;
     renderFailures();
     // ログイン中はクラウドにも保存して端末間で同期する
     if (currentUser) {
