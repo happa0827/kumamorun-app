@@ -194,9 +194,13 @@ const playNotes = async (notes, speakerIdOverride) => {
   }
 };
 
+// 完走・制限時刻の通過を知らせるアラームの長さ。
+// ウィンドウを最前面に保つ時間もこれに合わせる（鳴っている間だけ割り込む）。
+const ALARM_SEC = 10;
+
 // 完走・制限時刻の通過を知らせるアラーム。
 // 高めの「ピー・ピー」を durationSec 秒のあいだ断続的に鳴らし続ける。
-const playBeep = (durationSec = 10, speakerIdOverride) => {
+const playBeep = (durationSec = ALARM_SEC, speakerIdOverride) => {
   const beepOn = 0.4;
   const cycle = beepOn + 0.3; // 0.4秒鳴らして0.3秒休む
   const notes = [];
@@ -279,6 +283,14 @@ const speechFromTimerState = () => {
     return `${state.label}、一時停止中。${speechForDisplay('', formatTime(state.remaining))}`;
   }
   return 'タイマーは動いていません';
+};
+
+// #remaining が無いページでも、時刻ベース（昼休憩中）の表示だけは index.html と同じに答える。
+// タイマーの状態には現れない＝壁時計で決まるので、timerState を見ても分からない。
+const speechForNow = () => {
+  const lunch = lunchBreakRemaining();
+  if (lunch != null) return speechForDisplay('昼休憩中（終了まで）', formatTime(lunch));
+  return speechFromTimerState();
 };
 
 // 音量100%のときの増幅率。speechSynthesis 直読みだと 1.0 が上限で小さかったため、
@@ -370,7 +382,7 @@ if (window.kumamorunAPI?.registerSpeakShortcut) {
   window.kumamorunAPI.onSpeakRemaining(() => {
     const el = document.getElementById('remaining');
     const labelText = document.getElementById('label')?.textContent;
-    speak(el ? speechForDisplay(labelText, el.textContent) : speechFromTimerState());
+    speak(el ? speechForDisplay(labelText, el.textContent) : speechForNow());
   });
 }
 
@@ -667,8 +679,9 @@ if (remainingEl) {
     if (store.ids.includes(id)) return;
     store.ids.push(id);
     localStorage.setItem(RANG_KEY, JSON.stringify(store));
-    // 非表示（トレイ常駐）中でも気づけるようウィンドウを前面に出してから鳴らす
-    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
+    // 非表示（トレイ常駐）中や他アプリが全画面でも気づけるよう、
+    // 鳴っているあいだウィンドウを最前面に出してから鳴らす
+    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow(ALARM_SEC);
     new Notification(title, { body });
     playBeep();
   };
@@ -851,6 +864,41 @@ if (remainingEl) {
     });
   }
 
+  // タイマーが動いていないときの表示を毎秒描く。
+  // 稼働中／一時停止中は runActiveTimer が表示を持っているので何もしない。
+  //
+  // このループは制限時刻の監視（watchBoundaries）と同じく、タイマーの状態に関係なく常に回す。
+  // 以前はページ読み込み時にタイマーが無かったときだけ回していたため、
+  // 目の前でタイマーが完走すると表示が「時間切れ！」で固まり、そのまま昼休憩の時間帯に
+  // 入っても自動表示へ切り替わらなかった。読み上げ（Ctrl+Alt+T）は #remaining を
+  // そのまま読むので、昼休憩中でも「時間切れです」としゃべってしまっていた。
+  const renderIdle = () => {
+    const state = loadTimerState();
+    if (state && !state.finished) return;
+    // 昼休憩中は、休憩をスタートしなくても自動で「昼休憩 終了まで」を表示する
+    const lunch = lunchBreakRemaining();
+    if (lunch != null) {
+      remainingEl.textContent = formatTime(lunch);
+      if (labelEl) labelEl.textContent = '昼休憩中（終了まで）';
+      return;
+    }
+    // 遊び完走後は休憩の猶予（3分）の残りを表示する（完走直後も、別画面から戻った後も同じ）
+    const reward = rewardWindowRemaining();
+    if (reward != null) {
+      remainingEl.textContent = formatTime(reward);
+      if (labelEl) labelEl.textContent = '休憩の猶予';
+      return;
+    }
+    if (state && state.finished) {
+      if (labelEl) labelEl.textContent = state.label;
+      // 制限時刻で打ち切られたときは、その理由を出し続ける（リロードしても残る）
+      remainingEl.textContent = state.endedBy ? `${state.endedBy}の時間です` : '時間切れ！';
+    } else {
+      if (labelEl) labelEl.textContent = '';
+      remainingEl.textContent = '-';
+    }
+  };
+
   // 保存済みのタイマー状態を表示・駆動する（ページ遷移をまたいで継続）
   const runActiveTimer = (state) => {
     // 「まもなく終了」は残り5分で知らせる。
@@ -882,26 +930,6 @@ if (remainingEl) {
 
     let tickId = null;
 
-    // 遊び完走後、休憩の猶予（3分）の残り時間を #remaining に表示し続ける。
-    // 猶予が切れたら「時間切れ！」に戻す。
-    let rewardId = null;
-    const startRewardCountdown = () => {
-      const render = () => {
-        const left = rewardWindowRemaining();
-        if (left == null) {
-          if (rewardId) clearInterval(rewardId);
-          rewardId = null;
-          remainingEl.textContent = '時間切れ！';
-          if (labelEl) labelEl.textContent = state.label;
-          return;
-        }
-        remainingEl.textContent = formatTime(left);
-        if (labelEl) labelEl.textContent = '休憩の猶予';
-      };
-      render();
-      rewardId = setInterval(render, 1000);
-    };
-
     const finish = () => {
       if (tickId) clearInterval(tickId);
       tickId = null;
@@ -912,13 +940,15 @@ if (remainingEl) {
       saveTimerState(state);
       remainingEl.textContent = '時間切れ！';
       if (toggleBtn) toggleBtn.disabled = true;
-      // 非表示（トレイ常駐）中でも気づけるようウィンドウを前面に出してから鳴らす
-      if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
+      // 非表示（トレイ常駐）中や他アプリが全画面でも気づけるよう、
+      // 鳴っているあいだウィンドウを最前面に出してから鳴らす
+      if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow(ALARM_SEC);
       new Notification(`${state.label} が終わりました`, { body: 'お疲れさまでした！' });
-      playBeep(10, getSpeakerId(state.label === '休憩' ? 'break' : 'play'));
+      playBeep(ALARM_SEC, getSpeakerId(state.label === '休憩' ? 'break' : 'play'));
       handleTimerFinished(state.label);
-      // 遊び完走後は休憩の猶予（3分）の残りを表示し続ける
-      if (state.label === '遊び') startRewardCountdown();
+      // ここから先の表示は renderIdle が引き継ぐ（休憩の猶予・昼休憩の自動表示）。
+      // 次の1秒を待たずに切り替わるよう、この場でも一度呼ぶ。
+      renderIdle();
     };
 
     // 遊び中に「昼休憩開始」または「完全終了」の時刻へ到達したら、そこで終了扱いにする。
@@ -932,10 +962,12 @@ if (remainingEl) {
       state.running = false;
       state.finished = true;
       state.remaining = 0;
+      // 打ち切った理由を残す。これ以降の表示は renderIdle が担当し、
+      // 昼休憩なら「終了まで」のカウントダウン、完全終了なら「終了の時間です」を出し続ける。
+      state.endedBy = kind;
       saveTimerState(state);
       if (toggleBtn) toggleBtn.disabled = true;
-      remainingEl.textContent = `${kind}の時間です`;
-      if (labelEl) labelEl.textContent = state.label;
+      renderIdle();
       return true;
     };
 
@@ -1011,36 +1043,13 @@ if (remainingEl) {
   } else {
     // タイマーが動いていない（または終了済みの）ときはボタンを無効化
     if (toggleBtn) toggleBtn.disabled = true;
-    // 昼休憩中は、休憩をスタートしなくても自動で「昼休憩 終了まで」を毎秒表示する
-    // 表示だけを担当する（制限時刻の鳴動は watchBoundaries が常時見ている）
-    const renderIdle = () => {
-      const lunch = lunchBreakRemaining();
-      if (lunch != null) {
-        remainingEl.textContent = formatTime(lunch);
-        if (labelEl) labelEl.textContent = '昼休憩中（終了まで）';
-        return;
-      }
-      // 遊び完走後に別画面から戻った/リロードした場合も、休憩の猶予（3分）を表示する
-      const reward = rewardWindowRemaining();
-      if (reward != null) {
-        remainingEl.textContent = formatTime(reward);
-        if (labelEl) labelEl.textContent = '休憩の猶予';
-        return;
-      }
-      if (timerState && timerState.finished) {
-        if (labelEl) labelEl.textContent = timerState.label;
-        remainingEl.textContent = '時間切れ！';
-      } else {
-        if (labelEl) labelEl.textContent = '';
-        remainingEl.textContent = '-';
-      }
-    };
     renderIdle();
-    setInterval(renderIdle, 1000);
   }
 
-  // 制限時刻の監視はタイマーの稼働状態と無関係に常に回す。
-  // （タイマー稼働中／一時停止中／完走後／未稼働のどれでも鳴るようにするため）
+  // 待機中の表示と制限時刻の監視は、タイマーの稼働状態と無関係に常に回す。
+  // （タイマー稼働中／一時停止中／完走後／未稼働のどれでも、
+  //   時刻ベースの表示に切り替わり、時刻が来れば鳴るようにするため）
+  setInterval(renderIdle, 1000);
   setInterval(watchBoundaries, 1000);
 }
 
@@ -1217,7 +1226,7 @@ if (saveBtn) {
     // 押したときにどう読まれるかを、キーを登録する前に確かめられるようにする
     if (shortcutTestBtn) {
       shortcutTestBtn.addEventListener('click', () =>
-        speak(speechFromTimerState(), currentVolume()),
+        speak(speechForNow(), currentVolume()),
       );
     }
 

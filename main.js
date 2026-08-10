@@ -230,14 +230,35 @@ if (!gotLock) {
     }
   });
 
-  // タイマー完了時、非表示（トレイ常駐）でもウィンドウを前面に出して確実に気づかせる
-  ipcMain.on('surface-window', () => {
+  // タイマー完了時、非表示（トレイ常駐）でもウィンドウを前面に出して確実に気づかせる。
+  // 最前面を解除するタイマー（アラームが鳴り終わったら普通のウィンドウに戻す）
+  let alwaysOnTopTimer = null;
+  ipcMain.on('surface-window', (_e, holdSec) => {
     // ミニモード中の完走はミニを畳んでメインを出す（closed ハンドラが表示まで面倒を見る）
     if (miniWindow) miniWindow.close();
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    if (!mainWindow) return;
+
+    mainWindow.show();
+    // 'screen-saver' は Electron の最上位レベルで、**他アプリが全画面でもその上**に出る。
+    // focus() だけだと Windows のフォアグラウンド強奪制限に阻まれてタスクバーが点滅するだけに
+    // 終わることがあるが、最前面指定はフォーカスを奪わずに前へ出せるのでその制限を受けない。
+    // ※ 排他的全画面（DirectX が画面出力を占有するゲーム）だけは OS の仕様上どうしても重ねられない。
+    //    その場合は音とタスクバーで気づいてもらう。
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    mainWindow.moveTop();
+    mainWindow.focus();
+
+    // アラームが鳴り終わったら最前面を解除する。ずっと最前面のままだと他の作業に居座るため、
+    // 「鳴っている間だけ割り込む」挙動にしている。0.5秒は鳴り終わりとの前後差の余裕。
+    clearTimeout(alwaysOnTopTimer);
+    const hold = Number(holdSec) > 0 ? Number(holdSec) : 10;
+    alwaysOnTopTimer = setTimeout(
+      () => {
+        alwaysOnTopTimer = null;
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false);
+      },
+      hold * 1000 + 500,
+    );
   });
 
   // アプリのバージョン（package.json の version）を画面表示用に返す

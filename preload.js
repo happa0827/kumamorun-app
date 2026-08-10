@@ -4,7 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 // タイマー完了時にウィンドウを前面へ出して、非表示（トレイ常駐）中でも
 // アラームに気づけるようにするためのもの。
 contextBridge.exposeInMainWorld('kumamorunAPI', {
-  surfaceWindow: () => ipcRenderer.send('surface-window'),
+  // holdSec = 最前面を保つ秒数（アラームの長さ）。省略時は main 側で 10 秒。
+  surfaceWindow: (holdSec) => ipcRenderer.send('surface-window', holdSec),
   getVersion: () => ipcRenderer.invoke('app:version'),
   setFullscreen: (on) => ipcRenderer.send('set-fullscreen', !!on),
 
