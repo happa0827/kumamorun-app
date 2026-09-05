@@ -172,7 +172,7 @@ const playNotes = async (notes, speakerIdOverride) => {
     // 非表示ウィンドウでは AudioContext が suspended で始まり音が出ないことがあるため復帰させる
     if (ctx.state === 'suspended' && ctx.resume) await ctx.resume();
     const now = ctx.currentTime;
-    notes.forEach(({ freq, at, dur, type = 'sine', volume = 0.2 }) => {
+    notes.forEach(({ freq, at, dur, type = 'sine', volume = 0.7 }) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -198,37 +198,50 @@ const playNotes = async (notes, speakerIdOverride) => {
 // ウィンドウを最前面に保つ時間もこれに合わせる（鳴っている間だけ割り込む）。
 const ALARM_SEC = 10;
 
-// 完走・制限時刻の通過を知らせるアラーム。
-// 高めの「ピー・ピー」を durationSec 秒のあいだ断続的に鳴らし続ける。
-const playBeep = (durationSec = ALARM_SEC, speakerIdOverride) => {
-  const beepOn = 0.4;
-  const cycle = beepOn + 0.3; // 0.4秒鳴らして0.3秒休む
+const WAVE_TYPES = ['sine', 'square', 'triangle', 'sawtooth'];
+const randBetween = (min, max) => min + Math.random() * (max - min);
+
+// 完走アラーム専用。高さ・長さ・間隔・音色を毎回変えて、耳が慣れにくくする。
+const irregularBeeps = (durationSec) => {
   const notes = [];
-  for (let at = 0; at < durationSec; at += cycle) {
-    notes.push({ freq: 880, at, dur: Math.min(beepOn, durationSec - at) });
+  let at = 0;
+  while (at < durationSec) {
+    const dur = Math.min(randBetween(0.07, 0.38), durationSec - at);
+    if (dur < 0.04) break;
+    notes.push({
+      freq: randBetween(620, 1480),
+      at,
+      dur,
+      type: WAVE_TYPES[Math.floor(Math.random() * WAVE_TYPES.length)],
+      volume: 0.75,
+    });
+    at += dur + randBetween(0.04, 0.42);
   }
-  return playNotes(notes, speakerIdOverride);
+  return notes;
 };
 
-// 20-20-20リマインダーの音。「目を上げて」という穏やかな合図なので、
-// 低めの三角波でやわらかい2音の上昇チャイムにする。
-// 「まもなく終了」とは音色・高さ・リズムのすべてを変えて聞き分けられるようにしている。
+// 完走・制限時刻。長く続く不規則ビープ＝「終わった」。
+const playBeep = (durationSec = ALARM_SEC, speakerIdOverride) =>
+  playNotes(irregularBeeps(durationSec), speakerIdOverride);
+
+// 20-20-20。「目を上げて」の合図。上昇する3音チャイムで、ビープとは別物にする。
 const playEyeBreakChime = (speakerIdOverride) =>
   playNotes(
     [
-      { freq: 523.25, at: 0, dur: 0.28, type: 'triangle', volume: 0.16 }, // C5
-      { freq: 659.25, at: 0.32, dur: 0.5, type: 'triangle', volume: 0.16 }, // E5
+      { freq: 392.0, at: 0, dur: 0.22, type: 'triangle', volume: 0.7 }, // G4
+      { freq: 523.25, at: 0.26, dur: 0.22, type: 'triangle', volume: 0.7 }, // C5
+      { freq: 659.25, at: 0.52, dur: 0.55, type: 'triangle', volume: 0.7 }, // E5
     ],
     speakerIdOverride === undefined ? getSpeakerId('notify') : speakerIdOverride,
   );
 
-// 「まもなく終了」の音。急かす合図なので、高めの短い3連ビープにする。
+// 「まもなく終了」。同じ高さの短い3連ビープ。チャイムでも不規則アラームでもない。
 const playWarnBeeps = (speakerIdOverride) =>
   playNotes(
     [
-      { freq: 1174.66, at: 0, dur: 0.1 }, // D6
-      { freq: 1174.66, at: 0.17, dur: 0.1 },
-      { freq: 1174.66, at: 0.34, dur: 0.1 },
+      { freq: 1396.91, at: 0, dur: 0.09, type: 'square', volume: 0.55 }, // F6
+      { freq: 1396.91, at: 0.16, dur: 0.09, type: 'square', volume: 0.55 },
+      { freq: 1396.91, at: 0.32, dur: 0.09, type: 'square', volume: 0.55 },
     ],
     speakerIdOverride === undefined ? getSpeakerId('notify') : speakerIdOverride,
   );
@@ -322,9 +335,7 @@ const speak = async (text, volumeOverride) => {
   if (!volume) return; // 音量0%は読み上げない
   try {
     // Windows の音声合成に WAV を作ってもらう（数百ミリ秒かかる）
-    const base64 = window.kumamorunAPI?.speakWav
-      ? await window.kumamorunAPI.speakWav(text)
-      : null;
+    const base64 = window.kumamorunAPI?.speakWav ? await window.kumamorunAPI.speakWav(text) : null;
     if (!base64) {
       speakWithBrowser(text, volume);
       return;
@@ -625,9 +636,9 @@ if (remainingEl) {
     '07': 'src/evo/07_タンポポ.png',
     '08': 'src/evo/08_ボタン.png',
     '09': 'src/evo/09_青いヒガンバナ.png',
-    '11': 'src/evo/11_夜桜.png',
+    11: 'src/evo/11_夜桜.png',
   };
-  const FLOWER_NAMES = { '07': 'タンポポ', '08': 'ボタン', '09': '青いヒガンバナ', '11': '夜桜' };
+  const FLOWER_NAMES = { '07': 'タンポポ', '08': 'ボタン', '09': '青いヒガンバナ', 11: '夜桜' };
 
   // 開花で咲く花を抽選する。07/08/09 が各33%、11 夜桜が1%。
   const pickFlower = () => {
@@ -1225,9 +1236,7 @@ if (saveBtn) {
 
     // 押したときにどう読まれるかを、キーを登録する前に確かめられるようにする
     if (shortcutTestBtn) {
-      shortcutTestBtn.addEventListener('click', () =>
-        speak(speechForNow(), currentVolume()),
-      );
+      shortcutTestBtn.addEventListener('click', () => speak(speechForNow(), currentVolume()));
     }
 
     renderShortcut();
