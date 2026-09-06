@@ -44,6 +44,24 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.dev-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #8a5a12;
+  color: #fff8e8;
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.75rem;
+}
+
+body.dev-mode {
+  padding-top: 1.7rem;
+}
+
 /* ===== Card (fills the whole window, no outer margin) ===== */
 .app {
   width: 100%;

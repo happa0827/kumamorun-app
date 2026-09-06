@@ -2,11 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // レンダラーから main プロセスへ最小限の操作だけを公開する。
 // タイマー完了時にウィンドウを前面へ出して、非表示（トレイ常駐）中でも
-// アラームに気づけるようにするためのもの。
+// アラームに気づけるようにするためのもの。完了後は常時最前面のままにする。
 contextBridge.exposeInMainWorld('kumamorunAPI', {
-  // holdSec = 最前面を保つ秒数（アラームの長さ）。省略時は main 側で 10 秒。
-  surfaceWindow: (holdSec) => ipcRenderer.send('surface-window', holdSec),
+  surfaceWindow: () => ipcRenderer.send('surface-window'),
+  releaseAlwaysOnTop: () => ipcRenderer.send('release-always-on-top'),
   getVersion: () => ipcRenderer.invoke('app:version'),
+  isDev: process.argv.includes('--kumamorun-dev'),
   setFullscreen: (on) => ipcRenderer.send('set-fullscreen', !!on),
 
   // ミニモード（残り時間だけの小さいウィンドウ）

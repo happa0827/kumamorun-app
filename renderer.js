@@ -14,6 +14,65 @@ const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getDatabase(firebaseApp);
 
+// 開発実行（インストール版ではない）では本番アカウントとデータを分離する。
+// ログインは専用のテストアカウント。Firebase 上は別 uid になるので、進化・花・統計は本番に書かない。
+const DEV_EMAIL = 'dev@kumamorun.app';
+const DEV_PASSWORD = 'kumamorun-dev';
+const isDevApp = () => !!(window.kumamorunAPI && window.kumamorunAPI.isDev);
+
+const signInDevAccount = async () => {
+  const user = auth.currentUser;
+  if (user && user.email === DEV_EMAIL) return;
+  if (user) {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.log('開発モード切替のためログアウトできませんでした', e);
+    }
+  }
+  try {
+    await signInWithEmailAndPassword(auth, DEV_EMAIL, DEV_PASSWORD);
+    return;
+  } catch (e) {
+    // 未作成、またはメール列挙保護で invalid-credential になる場合は新規登録を試す
+    const code = e && e.code;
+    if (
+      code !== 'auth/user-not-found' &&
+      code !== 'auth/invalid-credential' &&
+      code !== 'auth/invalid-login-credentials'
+    ) {
+      console.log('開発用アカウントのログインに失敗しました', e);
+      return;
+    }
+  }
+  try {
+    await createUserWithEmailAndPassword(auth, DEV_EMAIL, DEV_PASSWORD);
+  } catch (e) {
+    if (e && e.code === 'auth/email-already-in-use') {
+      try {
+        await signInWithEmailAndPassword(auth, DEV_EMAIL, DEV_PASSWORD);
+      } catch (e2) {
+        console.log('開発用アカウントのログインに失敗しました', e2);
+      }
+      return;
+    }
+    console.log('開発用アカウントの作成に失敗しました', e);
+  }
+};
+
+if (isDevApp()) {
+  document.documentElement.classList.add('dev-mode');
+  document.body.classList.add('dev-mode');
+  if (!document.getElementById('dev-banner')) {
+    const banner = document.createElement('div');
+    banner.id = 'dev-banner';
+    banner.className = 'dev-banner';
+    banner.textContent = '開発モード — テストアカウント（本番データには書き込みません）';
+    document.body.prepend(banner);
+  }
+  signInDevAccount();
+}
+
 // ページをまたいで設定を渡すためのキー
 const STORAGE_KEY = 'countdown';
 // 遊び/休憩の既定時間を保存するキー
@@ -195,7 +254,6 @@ const playNotes = async (notes, speakerIdOverride) => {
 };
 
 // 完走・制限時刻の通過を知らせるアラームの長さ。
-// ウィンドウを最前面に保つ時間もこれに合わせる（鳴っている間だけ割り込む）。
 const ALARM_SEC = 10;
 
 const WAVE_TYPES = ['sine', 'square', 'triangle', 'sawtooth'];
@@ -691,8 +749,8 @@ if (remainingEl) {
     store.ids.push(id);
     localStorage.setItem(RANG_KEY, JSON.stringify(store));
     // 非表示（トレイ常駐）中や他アプリが全画面でも気づけるよう、
-    // 鳴っているあいだウィンドウを最前面に出してから鳴らす
-    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow(ALARM_SEC);
+    // ウィンドウを最前面に出してから鳴らす（完了後も常時最前面のまま）
+    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
     new Notification(title, { body });
     playBeep();
   };
@@ -912,6 +970,8 @@ if (remainingEl) {
 
   // 保存済みのタイマー状態を表示・駆動する（ページ遷移をまたいで継続）
   const runActiveTimer = (state) => {
+    // 新しいタイマーが始まったら、完了時の常時最前面を解除する
+    if (window.kumamorunAPI) window.kumamorunAPI.releaseAlwaysOnTop();
     // 「まもなく終了」は残り5分で知らせる。
     // 5分以下のタイマーは開始した瞬間に鳴るだけなので、知らせない（0 = 無効）。
     const warnAt = state.duration > WARN_BEFORE_SEC ? WARN_BEFORE_SEC : 0;
@@ -952,8 +1012,8 @@ if (remainingEl) {
       remainingEl.textContent = '時間切れ！';
       if (toggleBtn) toggleBtn.disabled = true;
       // 非表示（トレイ常駐）中や他アプリが全画面でも気づけるよう、
-      // 鳴っているあいだウィンドウを最前面に出してから鳴らす
-      if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow(ALARM_SEC);
+      // ウィンドウを最前面に出してから鳴らす（完了後も常時最前面のまま）
+      if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
       new Notification(`${state.label} が終わりました`, { body: 'お疲れさまでした！' });
       playBeep(ALARM_SEC, getSpeakerId(state.label === '休憩' ? 'break' : 'play'));
       handleTimerFinished(state.label);
@@ -1055,6 +1115,10 @@ if (remainingEl) {
     // タイマーが動いていない（または終了済みの）ときはボタンを無効化
     if (toggleBtn) toggleBtn.disabled = true;
     renderIdle();
+    // 完了済みのまま設定などから戻ってきたときも、最前面を維持する
+    if (timerState && timerState.finished && window.kumamorunAPI) {
+      window.kumamorunAPI.surfaceWindow();
+    }
   }
 
   // 待機中の表示と制限時刻の監視は、タイマーの稼働状態と無関係に常に回す。
@@ -1355,33 +1419,50 @@ if (loginBtn) {
   // ログイン状態の変化を監視して表示を更新する
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      statusEl.textContent = `ログイン中: ${user.email}`;
+      statusEl.textContent = isDevApp()
+        ? `開発用アカウント: ${user.email || 'テスト'}`
+        : `ログイン中: ${user.email}`;
       // Realtime Database にユーザー情報を記録（連携の動作確認用）
       set(ref(db, `users/${user.uid}/lastLogin`), Date.now())
         .then(() => console.log('lastLogin をクラウドに保存しました'))
         .catch((e) => console.log('lastLogin のクラウド保存に失敗しました', e));
     } else {
-      statusEl.textContent = '未ログイン';
+      statusEl.textContent = isDevApp() ? '開発モード: 接続中…' : '未ログイン';
     }
   });
 
-  loginBtn.addEventListener('click', async () => {
-    try {
-      await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
-    } catch (e) {
-      statusEl.textContent = `エラー: ${e.message}`;
+  if (isDevApp()) {
+    loginBtn.disabled = true;
+    if (signupBtn) signupBtn.disabled = true;
+    if (logoutBtn) logoutBtn.disabled = true;
+    if (emailInput) {
+      emailInput.value = DEV_EMAIL;
+      emailInput.disabled = true;
     }
-  });
-
-  signupBtn.addEventListener('click', async () => {
-    try {
-      await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
-    } catch (e) {
-      statusEl.textContent = `エラー: ${e.message}`;
+    if (passwordInput) {
+      passwordInput.value = '';
+      passwordInput.placeholder = '開発モードでは自動ログインします';
+      passwordInput.disabled = true;
     }
-  });
+  } else {
+    loginBtn.addEventListener('click', async () => {
+      try {
+        await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+      } catch (e) {
+        statusEl.textContent = `エラー: ${e.message}`;
+      }
+    });
 
-  logoutBtn.addEventListener('click', () => signOut(auth));
+    signupBtn.addEventListener('click', async () => {
+      try {
+        await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+      } catch (e) {
+        statusEl.textContent = `エラー: ${e.message}`;
+      }
+    });
+
+    logoutBtn.addEventListener('click', () => signOut(auth));
+  }
 }
 
 // 20-20-20ルールの通知は、遊びタイマー稼働中に runActiveTimer 内で行う
