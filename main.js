@@ -16,13 +16,44 @@ const { execFile } = require('child_process');
 const { updateElectronApp } = require('update-electron-app');
 updateElectronApp();
 
-// Windows で通知の識別を安定させる
-app.setAppUserModelId('com.kumamorun.app');
+// 開発実行（`bun run start`）とインストール版を分ける。
+// 同じ userData だと Firebase のログイン状態も localStorage も本番と共有してしまう。
+const isDevBuild = !app.isPackaged;
+if (isDevBuild) {
+  app.setName('Kumamorun-dev');
+  app.setPath('userData', path.join(app.getPath('appData'), 'Kumamorun-dev'));
+  app.setAppUserModelId('com.kumamorun.app.dev');
+} else {
+  app.setAppUserModelId('com.kumamorun.app');
+}
+
+const windowWebPrefs = () => ({
+  backgroundThrottling: false,
+  preload: path.join(__dirname, 'preload.js'),
+  additionalArguments: isDevBuild ? ['--kumamorun-dev'] : [],
+});
 
 let mainWindow = null;
 let miniWindow = null;
 let tray = null;
 let isQuitting = false;
+// タイマー完了後の常時最前面。最小化やトレイ隠しで画面を消されないようにする。
+let finishPinned = false;
+
+const keepFinishPinnedVisible = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.setMinimizable(false);
+  mainWindow.show();
+  // 'screen-saver' は Electron の最上位レベルで、**他アプリが全画面でもその上**に出る。
+  // focus() だけだと Windows のフォアグラウンド強奪制限に阻まれてタスクバーが点滅するだけに
+  // 終わることがあるが、最前面指定はフォーカスを奪わずに前へ出せるのでその制限を受けない。
+  // ※ 排他的全画面（DirectX が画面出力を占有するゲーム）だけは OS の仕様上どうしても重ねられない。
+  //    その場合は音とタスクバーで気づいてもらう。
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  mainWindow.moveTop();
+  mainWindow.focus();
+};
 
 // ミニモード（残り時間だけの小さい常時最前面ウィンドウ）
 const MINI_WIDTH = 240;
@@ -114,21 +145,34 @@ const createWindow = () => {
     height: 600,
     show: !startHidden,
     icon: path.join(__dirname, 'src', 'icon.ico'),
-    webPreferences: {
-      // 非表示・非アクティブでもタイマー/アラームの setInterval を間引かない
-      backgroundThrottling: false,
-      preload: path.join(__dirname, 'preload.js'),
-    },
+    webPreferences: windowWebPrefs(),
   });
 
   mainWindow.loadFile('index.html');
-
-  // ウィンドウを閉じてもアプリは終了せず、トレイに隠して裏で動かし続ける
-  mainWindow.on('close', (e) => {
-    if (!isQuitting) {
+  if (isDevBuild) {
+    mainWindow.on('page-title-updated', (e) => {
       e.preventDefault();
-      mainWindow.hide();
+      if (!mainWindow.isDestroyed()) mainWindow.setTitle('Kumamorun [開発]');
+    });
+    mainWindow.setTitle('Kumamorun [開発]');
+  }
+
+  // ウィンドウを閉じてもアプリは終了せず、トレイに隠して裏で動かし続ける。
+  // 完了ピン中は隠さず、最前面の完了画面を維持する。
+  mainWindow.on('close', (e) => {
+    if (isQuitting) return;
+    e.preventDefault();
+    if (finishPinned) {
+      keepFinishPinnedVisible();
+      return;
     }
+    mainWindow.hide();
+  });
+
+  // setMinimizable(false) でも Win+↓ などで最小化できることがあるので、すぐ戻す。
+  mainWindow.on('minimize', () => {
+    if (!finishPinned) return;
+    setTimeout(() => keepFinishPinnedVisible(), 0);
   });
 };
 
@@ -157,10 +201,7 @@ const createMiniWindow = () => {
     fullscreenable: false,
     alwaysOnTop: true,
     skipTaskbar: true,
-    webPreferences: {
-      backgroundThrottling: false,
-      preload: path.join(__dirname, 'preload.js'),
-    },
+    webPreferences: windowWebPrefs(),
   });
 
   miniWindow.loadFile('mini.html');
@@ -188,7 +229,7 @@ const createTray = () => {
   const iconPath = path.join(__dirname, 'src', 'kumamoru.png');
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
-  tray.setToolTip('Kumamorun');
+  tray.setToolTip(isDevBuild ? 'Kumamorun [開発]' : 'Kumamorun');
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -231,34 +272,19 @@ if (!gotLock) {
   });
 
   // タイマー完了時、非表示（トレイ常駐）でもウィンドウを前面に出して確実に気づかせる。
-  // 最前面を解除するタイマー（アラームが鳴り終わったら普通のウィンドウに戻す）
-  let alwaysOnTopTimer = null;
-  ipcMain.on('surface-window', (_e, holdSec) => {
+  // 完了後は常時最前面のままにする。次のタイマー開始で release-always-on-top が来る。
+  ipcMain.on('surface-window', () => {
     // ミニモード中の完走はミニを畳んでメインを出す（closed ハンドラが表示まで面倒を見る）
     if (miniWindow) miniWindow.close();
-    if (!mainWindow) return;
+    finishPinned = true;
+    keepFinishPinnedVisible();
+  });
 
-    mainWindow.show();
-    // 'screen-saver' は Electron の最上位レベルで、**他アプリが全画面でもその上**に出る。
-    // focus() だけだと Windows のフォアグラウンド強奪制限に阻まれてタスクバーが点滅するだけに
-    // 終わることがあるが、最前面指定はフォーカスを奪わずに前へ出せるのでその制限を受けない。
-    // ※ 排他的全画面（DirectX が画面出力を占有するゲーム）だけは OS の仕様上どうしても重ねられない。
-    //    その場合は音とタスクバーで気づいてもらう。
-    mainWindow.setAlwaysOnTop(true, 'screen-saver');
-    mainWindow.moveTop();
-    mainWindow.focus();
-
-    // アラームが鳴り終わったら最前面を解除する。ずっと最前面のままだと他の作業に居座るため、
-    // 「鳴っている間だけ割り込む」挙動にしている。0.5秒は鳴り終わりとの前後差の余裕。
-    clearTimeout(alwaysOnTopTimer);
-    const hold = Number(holdSec) > 0 ? Number(holdSec) : 10;
-    alwaysOnTopTimer = setTimeout(
-      () => {
-        alwaysOnTopTimer = null;
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false);
-      },
-      hold * 1000 + 500,
-    );
+  ipcMain.on('release-always-on-top', () => {
+    finishPinned = false;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.setAlwaysOnTop(false);
+    mainWindow.setMinimizable(true);
   });
 
   // アプリのバージョン（package.json の version）を画面表示用に返す
@@ -271,6 +297,7 @@ if (!gotLock) {
 
   // ミニモード: メインを隠して、残り時間だけの小さいウィンドウに切り替える
   ipcMain.on('mini:open', () => {
+    if (finishPinned) return;
     createMiniWindow();
     if (mainWindow) mainWindow.hide();
   });
