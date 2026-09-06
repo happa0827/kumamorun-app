@@ -1,18 +1,41 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
+const fs = require('fs');
+const path = require('path');
 
 // --- コード署名（このPCだけで有効な自己署名証明書）---
 // 秘密鍵はパスワード付きの kumamorun.pfx に保管し、そこから署名する。
 // パスワードは .env の CERTIFICATE_PASSWORD から読む（.pfx も .env も .gitignore 済み）。
+// bun 以外（npm / electron-forge 直叩き）でも読めるよう、ここで .env を載せる。
+// すでにシェルや CI でセットされている値は上書きしない。
 //
-// ※ .env を自動で読み込むのは bun だけ。必ず `bun run make` / `bun run publish` で実行すること。
-//   `npm run make` や `electron-forge make` の直叩きでは未設定になる。
 // ※ signtool の `/fd` は @electron/windows-sign が hashes から自動で付けるので、
 //   signWithParams などで自分で書いてはいけない（"You cannot use the /fd option twice." になる）。
+const loadDotEnv = () => {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return;
+  for (const raw of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+};
+loadDotEnv();
+
 const certificatePassword = process.env.CERTIFICATE_PASSWORD;
 if (!certificatePassword) {
   console.warn(
-    '[forge] CERTIFICATE_PASSWORD が未設定です。署名に失敗します（`bun run make` で実行してください）',
+    '[forge] CERTIFICATE_PASSWORD が未設定です。.env を置くか、環境変数にセットしてください',
   );
 }
 
