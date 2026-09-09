@@ -37,8 +37,9 @@ let mainWindow = null;
 let miniWindow = null;
 let tray = null;
 let isQuitting = false;
-// タイマー完了後の常時最前面。最小化やトレイ隠しで画面を消されないようにする。
+// タイマー完了後の常時最前面。アラーム中だけ閉じる／最小化を止める。
 let finishPinned = false;
+let pinUnlockTimer = null;
 
 const keepFinishPinnedVisible = () => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -53,6 +54,12 @@ const keepFinishPinnedVisible = () => {
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.moveTop();
   mainWindow.focus();
+};
+
+const unlockCloseAfterAlarm = () => {
+  finishPinned = false;
+  pinUnlockTimer = null;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setMinimizable(true);
 };
 
 // ミニモード（残り時間だけの小さい常時最前面ウィンドウ）
@@ -166,6 +173,7 @@ const createWindow = () => {
       keepFinishPinnedVisible();
       return;
     }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false);
     mainWindow.hide();
   });
 
@@ -272,19 +280,31 @@ if (!gotLock) {
   });
 
   // タイマー完了時、非表示（トレイ常駐）でもウィンドウを前面に出して確実に気づかせる。
-  // 完了後は常時最前面のままにする。次のタイマー開始で release-always-on-top が来る。
-  ipcMain.on('surface-window', () => {
+  // holdSec が 'keep' … 遊び／休憩の時間切れ。閉じるのを止め、次のタイマー開始まで最前面。
+  // holdSec が秒数 … 昼休憩／終了時刻のアラーム。鳴っている間だけ閉じられず、終わったら閉じられる。
+  ipcMain.on('surface-window', (_e, holdSec) => {
     // ミニモード中の完走はミニを畳んでメインを出す（closed ハンドラが表示まで面倒を見る）
     if (miniWindow) miniWindow.close();
-    finishPinned = true;
     keepFinishPinnedVisible();
+    clearTimeout(pinUnlockTimer);
+    if (holdSec === 'keep') {
+      finishPinned = true;
+      return;
+    }
+    const hold = Number(holdSec) > 0 ? Number(holdSec) : 0;
+    if (hold > 0) {
+      finishPinned = true;
+      pinUnlockTimer = setTimeout(unlockCloseAfterAlarm, hold * 1000 + 500);
+    } else {
+      unlockCloseAfterAlarm();
+    }
   });
 
   ipcMain.on('release-always-on-top', () => {
-    finishPinned = false;
+    clearTimeout(pinUnlockTimer);
+    unlockCloseAfterAlarm();
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.setAlwaysOnTop(false);
-    mainWindow.setMinimizable(true);
   });
 
   // アプリのバージョン（package.json の version）を画面表示用に返す

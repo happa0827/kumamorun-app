@@ -748,9 +748,8 @@ if (remainingEl) {
     if (store.ids.includes(id)) return;
     store.ids.push(id);
     localStorage.setItem(RANG_KEY, JSON.stringify(store));
-    // 非表示（トレイ常駐）中や他アプリが全画面でも気づけるよう、
-    // ウィンドウを最前面に出してから鳴らす（完了後も常時最前面のまま）
-    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
+    // 昼休憩開始／昼休憩終了／完全終了のアラーム。鳴っている間は閉じられず、終わったら閉じられる
+    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow(ALARM_SEC);
     new Notification(title, { body });
     playBeep();
   };
@@ -1011,9 +1010,8 @@ if (remainingEl) {
       saveTimerState(state);
       remainingEl.textContent = '時間切れ！';
       if (toggleBtn) toggleBtn.disabled = true;
-      // 非表示（トレイ常駐）中や他アプリが全画面でも気づけるよう、
-      // ウィンドウを最前面に出してから鳴らす（完了後も常時最前面のまま）
-      if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow();
+      // 遊び／休憩の時間切れ。次のタイマー開始まで閉じられない最前面にする
+      if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow('keep');
       new Notification(`${state.label} が終わりました`, { body: 'お疲れさまでした！' });
       playBeep(ALARM_SEC, getSpeakerId(state.label === '休憩' ? 'break' : 'play'));
       handleTimerFinished(state.label);
@@ -1115,9 +1113,10 @@ if (remainingEl) {
     // タイマーが動いていない（または終了済みの）ときはボタンを無効化
     if (toggleBtn) toggleBtn.disabled = true;
     renderIdle();
-    // 完了済みのまま設定などから戻ってきたときも、最前面を維持する
-    if (timerState && timerState.finished && window.kumamorunAPI) {
-      window.kumamorunAPI.surfaceWindow();
+    // 遊び／休憩の時間切れのまま戻ってきたときだけ、閉じられない最前面を維持する。
+    // 昼休憩／終了で打ち切られた分は、アラーム後に閉じられる状態を保つ。
+    if (timerState && timerState.finished && !timerState.endedBy && window.kumamorunAPI) {
+      window.kumamorunAPI.surfaceWindow('keep');
     }
   }
 
