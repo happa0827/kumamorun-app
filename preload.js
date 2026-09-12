@@ -4,9 +4,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 // タイマー完了時にウィンドウを前面へ出して、非表示（トレイ常駐）中でも
 // アラームに気づけるようにするためのもの。完了後は常時最前面のままにする。
 contextBridge.exposeInMainWorld('kumamorunAPI', {
-  // holdSec: 秒数＝昼休憩／終了アラーム中だけ閉じられない。'keep'＝時間切れで閉じ続けられない。
-  surfaceWindow: (holdSec) => ipcRenderer.send('surface-window', holdSec),
-  releaseAlwaysOnTop: () => ipcRenderer.send('release-always-on-top'),
+  // mode: 'keep'＝遊び／休憩の時間切れ（次のタイマーまで閉じられない）
+  //       'alarm'＝昼休憩／終了のアラーム（鳴り終わりで release してよい）
+  surfaceWindow: (mode) => ipcRenderer.send('surface-window', mode || 'alarm'),
+  releaseAlwaysOnTop: (force) => ipcRenderer.send('release-always-on-top', !!force),
   getVersion: () => ipcRenderer.invoke('app:version'),
   isDev: process.argv.includes('--kumamorun-dev'),
   setFullscreen: (on) => ipcRenderer.send('set-fullscreen', !!on),
