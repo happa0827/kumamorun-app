@@ -83,6 +83,8 @@ const TIMER_KEY = 'timerState';
 // スタート制限（昼休憩・完全終了）の設定を保存するキー。平日/週末で別々に持つ。
 // { weekday: { lunchStart, lunchEnd, endTime }, weekend: { lunchStart, lunchEnd, endTime } }
 const RESTRICTIONS_KEY = 'restrictions';
+// 制限時刻の保存直後に閉じられるかを引き継ぐ（'keep' | 'release'）
+const CLOSE_LOCK_KEY = 'closeLockAfterRestrictSave';
 
 // 土(6)・日(0)を週末とする
 const isWeekend = () => {
@@ -102,22 +104,37 @@ const nowHHMM = () => {
 const asHHMM = (v) => (v || '').slice(0, 5);
 
 // 時刻アラーム設定を保存したとき、変えた時刻が今より前なら閉じられないようにし、
-// 今より後なら閉じられるようにする。
+// 今より後なら閉じられるようにする。平日・週末のどちらを変えても見る。
 const applyCloseLockFromRestrictionEdit = (prev, next) => {
-  if (!window.kumamorunAPI) return;
-  const group = isWeekend() ? 'weekend' : 'weekday';
-  const oldG = (prev && prev[group]) || {};
-  const newG = (next && next[group]) || {};
   const cur = nowHHMM();
   const fields = ['lunchStart', 'lunchEnd', 'endTime'];
-  const changed = fields.filter((f) => asHHMM(oldG[f]) !== asHHMM(newG[f]));
-  if (!changed.length) return;
-  const lock = changed.some((f) => {
-    const t = asHHMM(newG[f]);
-    return t && t <= cur;
+  const changed = [];
+  ['weekday', 'weekend'].forEach((group) => {
+    const oldG = (prev && prev[group]) || {};
+    const newG = (next && next[group]) || {};
+    fields.forEach((f) => {
+      if (asHHMM(oldG[f]) !== asHHMM(newG[f])) changed.push(asHHMM(newG[f]));
+    });
   });
+  if (!changed.length) return;
+  const lock = changed.some((t) => t && t <= cur);
+  localStorage.setItem(CLOSE_LOCK_KEY, lock ? 'keep' : 'release');
+  if (!window.kumamorunAPI) return;
   if (lock) window.kumamorunAPI.surfaceWindow('keep');
   else window.kumamorunAPI.releaseAlwaysOnTop(true);
+};
+
+const applyPendingCloseLockFromRestrictSave = (timerState) => {
+  const pending = localStorage.getItem(CLOSE_LOCK_KEY);
+  if (!pending) return;
+  localStorage.removeItem(CLOSE_LOCK_KEY);
+  if (!window.kumamorunAPI) return;
+  if (pending === 'keep') {
+    window.kumamorunAPI.surfaceWindow('keep');
+    return;
+  }
+  const playKeep = timerState && timerState.finished && !timerState.endedBy;
+  if (!playKeep) window.kumamorunAPI.releaseAlwaysOnTop(true);
 };
 
 // スタートできない場合はその理由文字列を、可能なら null を返す。
@@ -942,6 +959,7 @@ if (remainingEl) {
 
   // index2.html からの開始要求があれば、新しいタイマー状態を作る
   const startRequest = localStorage.getItem(STORAGE_KEY);
+  const startedNewTimer = !!startRequest;
   if (startRequest) {
     // 一度読んだら消す（リロードで勝手に作り直さないように）
     localStorage.removeItem(STORAGE_KEY);
@@ -997,8 +1015,8 @@ if (remainingEl) {
 
   // 保存済みのタイマー状態を表示・駆動する（ページ遷移をまたいで継続）
   const runActiveTimer = (state) => {
-    // 新しいタイマーが始まったら、完了時の常時最前面を解除する
-    if (window.kumamorunAPI) window.kumamorunAPI.releaseAlwaysOnTop(true);
+    // 新しくスタートしたときだけピンを外す（設定画面から戻っただけでは外さない）
+    if (startedNewTimer && window.kumamorunAPI) window.kumamorunAPI.releaseAlwaysOnTop(true);
     // 「まもなく終了」は残り5分で知らせる。
     // 5分以下のタイマーは開始した瞬間に鳴るだけなので、知らせない（0 = 無効）。
     const warnAt = state.duration > WARN_BEFORE_SEC ? WARN_BEFORE_SEC : 0;
@@ -1148,6 +1166,7 @@ if (remainingEl) {
       window.kumamorunAPI.surfaceWindow('keep');
     }
   }
+  applyPendingCloseLockFromRestrictSave(timerState);
 
   // 待機中の表示と制限時刻の監視は、タイマーの稼働状態と無関係に常に回す。
   // （タイマー稼働中／一時停止中／完走後／未稼働のどれでも、
@@ -1422,7 +1441,6 @@ if (restrictSaveBtn) {
     localStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(r));
     // 設定を書き換えただけでは「今ちょうど境界を通過した」とみなさない
     localStorage.setItem(BOUNDARY_WATCH_KEY, JSON.stringify({ at: Date.now() }));
-    applyCloseLockFromRestrictionEdit(prev, r);
     // ログイン中はクラウドにも保存して端末間で同期する。
     // set() は非同期なので、完了を待ってから画面遷移する（待たないと書き込みが中断される）。
     if (auth.currentUser) {
@@ -1435,6 +1453,7 @@ if (restrictSaveBtn) {
     } else {
       console.log('未ログインのためローカルにのみ保存しました', r);
     }
+    applyCloseLockFromRestrictionEdit(prev, r);
     window.location.href = 'index.html';
   });
 }
