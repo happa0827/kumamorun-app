@@ -37,9 +37,10 @@ let mainWindow = null;
 let miniWindow = null;
 let tray = null;
 let isQuitting = false;
-// タイマー完了後の常時最前面。アラーム中だけ閉じる／最小化を止める。
+// タイマー完了後の常時最前面。最小化やトレイ隠しで画面を消されないようにする。
 let finishPinned = false;
-let pinUnlockTimer = null;
+// 'keep' のときは制限アラームの解除や設定保存では外さない
+let pinMode = null;
 
 const keepFinishPinnedVisible = () => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
@@ -56,10 +57,11 @@ const keepFinishPinnedVisible = () => {
   mainWindow.focus();
 };
 
-const unlockCloseAfterAlarm = () => {
-  finishPinned = false;
-  pinUnlockTimer = null;
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setMinimizable(true);
+const hideMainWindow = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.setAlwaysOnTop(false);
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.hide();
 };
 
 // ミニモード（残り時間だけの小さい常時最前面ウィンドウ）
@@ -173,8 +175,7 @@ const createWindow = () => {
       keepFinishPinnedVisible();
       return;
     }
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false);
-    mainWindow.hide();
+    hideMainWindow();
   });
 
   // setMinimizable(false) でも Win+↓ などで最小化できることがあるので、すぐ戻す。
@@ -279,32 +280,27 @@ if (!gotLock) {
     }
   });
 
+  const unpinWindow = (force) => {
+    if (!force && pinMode === 'keep') return;
+    pinMode = null;
+    finishPinned = false;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false);
+    mainWindow.setMinimizable(true);
+    mainWindow.setAlwaysOnTop(false);
+  };
+
   // タイマー完了時、非表示（トレイ常駐）でもウィンドウを前面に出して確実に気づかせる。
-  // holdSec が 'keep' … 遊び／休憩の時間切れ。閉じるのを止め、次のタイマー開始まで最前面。
-  // holdSec が秒数 … 昼休憩／終了時刻のアラーム。鳴っている間だけ閉じられず、終わったら閉じられる。
-  ipcMain.on('surface-window', (_e, holdSec) => {
-    // ミニモード中の完走はミニを畳んでメインを出す（closed ハンドラが表示まで面倒を見る）
+  ipcMain.on('surface-window', (_e, mode) => {
     if (miniWindow) miniWindow.close();
+    if (mode === 'keep') pinMode = 'keep';
+    else if (pinMode !== 'keep') pinMode = 'alarm';
+    finishPinned = true;
     keepFinishPinnedVisible();
-    clearTimeout(pinUnlockTimer);
-    if (holdSec === 'keep') {
-      finishPinned = true;
-      return;
-    }
-    const hold = Number(holdSec) > 0 ? Number(holdSec) : 0;
-    if (hold > 0) {
-      finishPinned = true;
-      pinUnlockTimer = setTimeout(unlockCloseAfterAlarm, hold * 1000 + 500);
-    } else {
-      unlockCloseAfterAlarm();
-    }
   });
 
-  ipcMain.on('release-always-on-top', () => {
-    clearTimeout(pinUnlockTimer);
-    unlockCloseAfterAlarm();
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    mainWindow.setAlwaysOnTop(false);
+  ipcMain.on('release-always-on-top', (_e, force) => {
+    unpinWindow(force);
   });
 
   // アプリのバージョン（package.json の version）を画面表示用に返す

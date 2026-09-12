@@ -98,6 +98,28 @@ const nowHHMM = () => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+// スタート制限の時刻を今と比べる（input type=time の秒付きも HH:MM にする）
+const asHHMM = (v) => (v || '').slice(0, 5);
+
+// 時刻アラーム設定を保存したとき、変えた時刻が今より前なら閉じられないようにし、
+// 今より後なら閉じられるようにする。
+const applyCloseLockFromRestrictionEdit = (prev, next) => {
+  if (!window.kumamorunAPI) return;
+  const group = isWeekend() ? 'weekend' : 'weekday';
+  const oldG = (prev && prev[group]) || {};
+  const newG = (next && next[group]) || {};
+  const cur = nowHHMM();
+  const fields = ['lunchStart', 'lunchEnd', 'endTime'];
+  const changed = fields.filter((f) => asHHMM(oldG[f]) !== asHHMM(newG[f]));
+  if (!changed.length) return;
+  const lock = changed.some((f) => {
+    const t = asHHMM(newG[f]);
+    return t && t <= cur;
+  });
+  if (lock) window.kumamorunAPI.surfaceWindow('keep');
+  else window.kumamorunAPI.releaseAlwaysOnTop(true);
+};
+
 // スタートできない場合はその理由文字列を、可能なら null を返す。
 // 昼休憩：開始〜終了の時間帯は不可。完全終了：指定時刻以降は翌日（日付が変わる）まで不可。
 const getStartBlockReason = () => {
@@ -247,6 +269,8 @@ const playNotes = async (notes, speakerIdOverride) => {
       osc.start(now + at);
       osc.stop(now + at + dur + 0.02);
     });
+    const lastEnd = notes.reduce((max, n) => Math.max(max, (n.at || 0) + (n.dur || 0)), 0);
+    await new Promise((resolve) => setTimeout(resolve, (lastEnd + 0.08) * 1000));
     console.log('音を再生しました');
   } catch (e) {
     console.log('音の再生に失敗しました', e);
@@ -748,10 +772,14 @@ if (remainingEl) {
     if (store.ids.includes(id)) return;
     store.ids.push(id);
     localStorage.setItem(RANG_KEY, JSON.stringify(store));
-    // 昼休憩開始／昼休憩終了／完全終了のアラーム。鳴っている間は閉じられず、終わったら閉じられる
-    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow(ALARM_SEC);
+    // 昼休憩開始／昼休憩終了／完全終了。鳴っている間は前面固定、鳴り終わったら必ず解除する
+    if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow('alarm');
     new Notification(title, { body });
-    playBeep();
+    Promise.resolve(playBeep())
+      .catch(() => {})
+      .then(() => {
+        if (window.kumamorunAPI) window.kumamorunAPI.releaseAlwaysOnTop(false);
+      });
   };
 
   // 制限時刻（昼休憩開始/昼休憩終了/完全終了）の通過を監視する唯一のループ。
@@ -970,7 +998,7 @@ if (remainingEl) {
   // 保存済みのタイマー状態を表示・駆動する（ページ遷移をまたいで継続）
   const runActiveTimer = (state) => {
     // 新しいタイマーが始まったら、完了時の常時最前面を解除する
-    if (window.kumamorunAPI) window.kumamorunAPI.releaseAlwaysOnTop();
+    if (window.kumamorunAPI) window.kumamorunAPI.releaseAlwaysOnTop(true);
     // 「まもなく終了」は残り5分で知らせる。
     // 5分以下のタイマーは開始した瞬間に鳴るだけなので、知らせない（0 = 無効）。
     const warnAt = state.duration > WARN_BEFORE_SEC ? WARN_BEFORE_SEC : 0;
@@ -1001,6 +1029,7 @@ if (remainingEl) {
     let tickId = null;
 
     const finish = () => {
+      if (state.endedBy) return;
       if (tickId) clearInterval(tickId);
       tickId = null;
       onBoundary = null;
@@ -1065,7 +1094,7 @@ if (remainingEl) {
         });
         playWarnBeeps();
       }
-      if (remaining <= 0) finish();
+      if (remaining <= 0 && state.running && !state.endedBy) finish();
     };
 
     // 別画面にいる間にすでに時間切れになっていたら、この時点で終了処理する
@@ -1388,8 +1417,12 @@ if (restrictSaveBtn) {
   });
 
   restrictSaveBtn.addEventListener('click', async () => {
+    const prev = JSON.parse(localStorage.getItem(RESTRICTIONS_KEY) || '{}');
     const r = { weekday: readGroup('wd'), weekend: readGroup('we') };
     localStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(r));
+    // 設定を書き換えただけでは「今ちょうど境界を通過した」とみなさない
+    localStorage.setItem(BOUNDARY_WATCH_KEY, JSON.stringify({ at: Date.now() }));
+    applyCloseLockFromRestrictionEdit(prev, r);
     // ログイン中はクラウドにも保存して端末間で同期する。
     // set() は非同期なので、完了を待ってから画面遷移する（待たないと書き込みが中断される）。
     if (auth.currentUser) {
