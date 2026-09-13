@@ -93,6 +93,9 @@ const isWeekend = () => {
 };
 // その日の遊び回数・失敗回数を保存するキー（{ date, plays, failures }）
 const DAILY_KEY = 'dailyStats';
+// 直近7日分 { 'YYYY-MM-DD': { plays, failures } }
+const DAILY_HISTORY_KEY = 'dailyHistory';
+const DAILY_HISTORY_DAYS = 7;
 // 遊び完走後の休憩開始猶予。スナップショットと判定の両方で使う。
 const PLAY_FINISHED_KEY = 'playFinishedAt';
 const REWARD_WINDOW_MS = 3 * 60 * 1000;
@@ -106,6 +109,85 @@ const END_STOP_CHECK_KEY = 'endStopCheck';
 const nowHHMM = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+// ローカル日付を "YYYY-MM-DD" で返す（UTCではなく端末の日付）
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const shiftDateStr = (yyyyMmDd, deltaDays) => {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + deltaDays);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
+const loadDailyHistory = () => {
+  const raw = JSON.parse(localStorage.getItem(DAILY_HISTORY_KEY) || '{}');
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+};
+
+const pruneDailyHistory = (history, today) => {
+  const allowed = new Set();
+  for (let i = 0; i < DAILY_HISTORY_DAYS; i += 1) allowed.add(shiftDateStr(today, -i));
+  const next = {};
+  Object.keys(history).forEach((date) => {
+    if (allowed.has(date) && history[date] && typeof history[date] === 'object') {
+      next[date] = {
+        plays: history[date].plays || 0,
+        failures: history[date].failures || 0,
+      };
+    }
+  });
+  return next;
+};
+
+const putDailyHistoryEntry = (date, plays, failures) => {
+  const today = todayStr();
+  const history = pruneDailyHistory(
+    { ...loadDailyHistory(), [date]: { plays: plays || 0, failures: failures || 0 } },
+    today,
+  );
+  localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(history));
+  return history;
+};
+
+const mergeDailyHistory = (local, cloud, today, keepTodayLocal) => {
+  const localObj = local && typeof local === 'object' && !Array.isArray(local) ? local : {};
+  const cloudObj = cloud && typeof cloud === 'object' && !Array.isArray(cloud) ? cloud : {};
+  const dates = new Set([...Object.keys(localObj), ...Object.keys(cloudObj)]);
+  const out = {};
+  dates.forEach((date) => {
+    const l = localObj[date];
+    const c = cloudObj[date];
+    if (date === today && keepTodayLocal && l) out[date] = l;
+    else if (c) out[date] = c;
+    else if (l) out[date] = l;
+  });
+  return pruneDailyHistory(out, today);
+};
+
+// サイト用。無い日は 0。success = その日遊びが1回以上かつ失敗0（進化判定と同じ）
+const weekRecords = () => {
+  const today = todayStr();
+  const hist = loadDailyHistory();
+  const todayStats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
+  const days = [];
+  for (let i = DAILY_HISTORY_DAYS - 1; i >= 0; i -= 1) {
+    const date = shiftDateStr(today, -i);
+    const rec = todayStats && todayStats.date === date ? todayStats : hist[date];
+    const plays = rec ? rec.plays || 0 : 0;
+    const failures = rec ? rec.failures || 0 : 0;
+    days.push({
+      date,
+      plays,
+      failures,
+      success: plays > 0 && failures === 0,
+    });
+  }
+  return days;
 };
 
 // スタート制限の時刻を今と比べる（input type=time の秒付きも HH:MM にする）
@@ -262,6 +344,7 @@ const getLiveStatusSnapshot = () => {
     startBlocked,
     blockReason: blockReason || null,
     daily: daily && daily.date ? { date: daily.date, plays: daily.plays || 0, failures: daily.failures || 0 } : null,
+    week: weekRecords(),
     startedAt: null,
     duration: null,
   };
@@ -369,6 +452,7 @@ const liveStatusFingerprint = (s) =>
     s.daily && s.daily.date,
     s.daily && s.daily.plays,
     s.daily && s.daily.failures,
+    s.week && s.week.map((d) => `${d.date}:${d.plays}:${d.failures}`).join(','),
   ].join('|');
 
 const offlineLiveStatus = () => ({
@@ -383,6 +467,7 @@ const offlineLiveStatus = () => ({
   startBlocked: false,
   blockReason: null,
   daily: null,
+  week: null,
   updatedAt: serverTimestamp(),
 });
 
@@ -864,10 +949,13 @@ if (remainingEl) {
           if (flowersEl) flowersEl.textContent = f;
         }
       });
-      // クラウドの当日統計を取り込んでから、日付が変わっていれば前日を評価する
-      get(ref(db, `users/${user.uid}/dailyStats`))
-        .then((snap) => {
-          const cloud = snap.val();
+      // クラウドの当日統計と直近7日を取り込んでから、日付が変わっていれば前日を評価する
+      Promise.all([
+        get(ref(db, `users/${user.uid}/dailyStats`)),
+        get(ref(db, `users/${user.uid}/dailyHistory`)),
+      ])
+        .then(([statsSnap, historySnap]) => {
+          const cloud = statsSnap.val();
           const local = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
           // 取り込み前にこの端末で記録していたら、その分は DB にまだ無い。
           // 同じ日付なら DB で上書きせず、ローカルを採って DB 側を押し上げる。
@@ -880,6 +968,21 @@ if (remainingEl) {
             if (JSON.stringify(merged) !== JSON.stringify(cloud)) {
               set(ref(db, `users/${user.uid}/dailyStats`), merged);
             }
+          }
+          const today = todayStr();
+          const mergedHistory = mergeDailyHistory(
+            loadDailyHistory(),
+            historySnap.val(),
+            today,
+            keepLocal,
+          );
+          if (merged && merged.date === today) {
+            mergedHistory[today] = { plays: merged.plays || 0, failures: merged.failures || 0 };
+          }
+          const pruned = pruneDailyHistory(mergedHistory, today);
+          localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(pruned));
+          if (JSON.stringify(pruned) !== JSON.stringify(historySnap.val() || {})) {
+            set(ref(db, `users/${user.uid}/dailyHistory`), pruned);
           }
           evaluateDailyRollover();
         })
@@ -925,12 +1028,6 @@ if (remainingEl) {
     if (r < 66) return '08';
     if (r < 99) return '09';
     return '11'; // 1% の当たり
-  };
-
-  // ローカル日付を "YYYY-MM-DD" で返す（UTCではなく端末の日付）
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   // --- 制限アラーム後の「やめた」確認（昼休憩開始・完全終了） ---
@@ -994,9 +1091,7 @@ if (remainingEl) {
     const stats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
     if (stats && stats.date === todayStr() && (stats.failures || 0) > 0) {
       stats.failures -= 1;
-      localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
-      dailyStatsDirty = true;
-      if (failuresEl) failuresEl.textContent = stats.failures;
+      saveDailyStats(stats);
     }
   };
 
@@ -1254,8 +1349,9 @@ if (remainingEl) {
       // 遅延失敗として誤カウントされないよう、期限切れの猶予を掃除する。
       localStorage.removeItem(PLAY_FINISHED_KEY);
       localStorage.removeItem(END_STOP_CHECK_KEY);
+      if (stats) putDailyHistoryEntry(stats.date, stats.plays || 0, stats.failures || 0);
       stats = { date: today, plays: 0, failures: 0 };
-      localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
+      saveDailyStats(stats);
     }
     return stats;
   };
@@ -1275,11 +1371,15 @@ if (remainingEl) {
     localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
     dailyStatsDirty = true;
     renderFailures();
+    const history = putDailyHistoryEntry(stats.date, stats.plays || 0, stats.failures || 0);
     // ログイン中はクラウドにも保存して端末間で同期する
     if (currentUser) {
       set(ref(db, `users/${currentUser.uid}/dailyStats`), stats)
         .then(() => console.log('当日の統計をクラウドに保存しました', stats))
         .catch((e) => console.log('当日の統計のクラウド保存に失敗しました', e));
+      set(ref(db, `users/${currentUser.uid}/dailyHistory`), history)
+        .then(() => console.log('週間の統計をクラウドに保存しました', history))
+        .catch((e) => console.log('週間の統計のクラウド保存に失敗しました', e));
     }
   };
 
