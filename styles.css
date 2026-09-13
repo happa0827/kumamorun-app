@@ -783,6 +783,38 @@ select {
   color: var(--text);
 }
 
+/* ===== 完全終了後の「やめた」確認 ===== */
+.quit-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1.2rem, 4vmin, 2.5rem);
+  background:
+    radial-gradient(1100px 620px at 50% -12%, #17171f 0%, transparent 60%),
+    rgba(10, 10, 14, 0.92);
+}
+
+.quit-confirm-overlay[hidden] {
+  display: none;
+}
+
+.quit-confirm-message {
+  margin: 0;
+  font-size: clamp(1.25rem, 5vmin, 2.2rem);
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+.quit-confirm-btn {
+  min-width: clamp(10rem, 40vmin, 16rem);
+  padding: 0.9rem 1.8rem;
+  font-size: clamp(1.1rem, 4vmin, 1.5rem);
+}
+
 /* ===== ミニモード（mini.html: 枠なし・背景透過の小さいウィンドウ） ===== */
 /* ウィンドウが透過なので body の背景は消す。余白は影を出すための逃げ。 */
 .mini-body {

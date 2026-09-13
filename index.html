@@ -74,6 +74,12 @@
       <button id="focus-exit" class="focus-exit">閉じる（Esc）</button>
     </div>
 
+    <!-- 完全終了後: 「やめた」を押したかで当日の失敗を判定する -->
+    <div id="quit-confirm" class="quit-confirm-overlay" hidden>
+      <p class="quit-confirm-message">今日はここまで？</p>
+      <button id="quit-confirm-btn" type="button" class="btn btn-primary quit-confirm-btn">やめた</button>
+    </div>
+
     <script src="bundle.js" defer></script>
   </body>
 </html>
