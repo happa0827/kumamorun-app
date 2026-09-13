@@ -93,7 +93,10 @@ const isWeekend = () => {
 };
 // その日の遊び回数・失敗回数を保存するキー（{ date, plays, failures }）
 const DAILY_KEY = 'dailyStats';
-// 完全終了アラーム後の「やめた」確認（{ date, rang, rangAt, pressed, failed }）。端末ローカルのみ。
+// 制限アラーム後の「やめた」確認。端末ローカルのみ。
+// 新形式: { date, lunchStart?: entry, endTime?: entry }
+// entry = { rang, rangAt, pressed, failed }
+// 旧形式（完全終了のみのフラット）は読み込み時に endTime へ移行する。
 const END_STOP_CHECK_KEY = 'endStopCheck';
 
 // 現在時刻を "HH:MM" で返す（ゼロ埋め）
@@ -770,21 +773,43 @@ if (remainingEl) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  // --- 完全終了後の「やめた」確認 ---
+  // --- 制限アラーム後の「やめた」確認（昼休憩開始・完全終了） ---
   // 鳴ってから3分以内に押す。押さなければその場で失敗（休憩の猶予と同じ窓）。
   // アプリが止まっていて3分判定を逃した場合は、日付ロールオーバーでも失敗にする。
-  // kind は後から昼休憩開始を足せるよう残す（今回は endTime のみ）。
   const END_STOP_WINDOW_MS = REWARD_WINDOW_MS;
+  const STOP_CONFIRM_KINDS = ['lunchStart', 'endTime'];
+  const STOP_CONFIRM_PROMPT = {
+    lunchStart: '昼休憩だよ。やめた？',
+    endTime: '今日はここまで？',
+  };
   const quitConfirmOverlay = document.getElementById('quit-confirm');
   const quitConfirmBtn = document.getElementById('quit-confirm-btn');
   const quitConfirmMessage = quitConfirmOverlay
     ? quitConfirmOverlay.querySelector('.quit-confirm-message')
     : null;
 
-  const loadEndStopCheck = () => JSON.parse(localStorage.getItem(END_STOP_CHECK_KEY) || 'null');
+  // 旧フラット形式 { date, rang, rangAt, pressed, failed } → { date, endTime: entry }
+  const normalizeStopConfirm = (raw) => {
+    if (!raw) return null;
+    if (raw.rang != null && raw.lunchStart == null && raw.endTime == null) {
+      return {
+        date: raw.date,
+        endTime: {
+          rang: !!raw.rang,
+          rangAt: raw.rangAt,
+          pressed: !!raw.pressed,
+          failed: !!raw.failed,
+        },
+      };
+    }
+    return raw;
+  };
 
-  const saveEndStopCheck = (check) => {
-    localStorage.setItem(END_STOP_CHECK_KEY, JSON.stringify(check));
+  const loadStopConfirm = () =>
+    normalizeStopConfirm(JSON.parse(localStorage.getItem(END_STOP_CHECK_KEY) || 'null'));
+
+  const saveStopConfirm = (store) => {
+    localStorage.setItem(END_STOP_CHECK_KEY, JSON.stringify(store));
   };
 
   const hideQuitConfirm = () => {
@@ -800,62 +825,82 @@ if (remainingEl) {
     }
   };
 
-  const endStopRemainingMs = (check) => {
-    if (!check || !Number.isFinite(check.rangAt)) return null;
-    return check.rangAt + END_STOP_WINDOW_MS - Date.now();
+  const stopEntryRemainingMs = (entry) => {
+    if (!entry || !Number.isFinite(entry.rangAt)) return null;
+    return entry.rangAt + END_STOP_WINDOW_MS - Date.now();
+  };
+
+  const undoOneFailure = () => {
+    const stats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
+    if (stats && stats.date === todayStr() && (stats.failures || 0) > 0) {
+      stats.failures -= 1;
+      localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
+      dailyStatsDirty = true;
+      if (failuresEl) failuresEl.textContent = stats.failures;
+    }
   };
 
   // rangAt 欠落の旧データは「期限切れ」と誤判定して即失敗にしていた。
   // 未決着なら窓を張り直し、誤って failed になっていれば失敗カウントも戻す。
-  const repairEndStopCheck = () => {
-    const check = loadEndStopCheck();
-    if (!check || check.date !== todayStr() || !check.rang || check.pressed) return check;
-    if (Number.isFinite(check.rangAt)) return check;
-    if (check.failed) {
-      const stats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
-      if (stats && stats.date === todayStr() && (stats.failures || 0) > 0) {
-        stats.failures -= 1;
-        localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
-        dailyStatsDirty = true;
-        if (failuresEl) failuresEl.textContent = stats.failures;
+  const repairStopConfirm = () => {
+    let store = loadStopConfirm();
+    if (!store || store.date !== todayStr()) return store;
+    let changed = false;
+    STOP_CONFIRM_KINDS.forEach((kind) => {
+      const entry = store[kind];
+      if (!entry || !entry.rang || entry.pressed) return;
+      if (Number.isFinite(entry.rangAt)) return;
+      if (entry.failed) {
+        undoOneFailure();
+        entry.failed = false;
       }
-      check.failed = false;
+      entry.rangAt = Date.now();
+      store[kind] = entry;
+      changed = true;
+    });
+    if (changed) saveStopConfirm(store);
+    return store;
+  };
+
+  // 表示中の確認（複数あるときは昼休憩開始を優先）
+  const activeStopConfirm = () => {
+    const store = repairStopConfirm();
+    if (!store || store.date !== todayStr()) return null;
+    for (const kind of STOP_CONFIRM_KINDS) {
+      const entry = store[kind];
+      if (!entry || !entry.rang || entry.pressed || entry.failed) continue;
+      const leftMs = stopEntryRemainingMs(entry);
+      if (leftMs == null || leftMs <= 0) continue;
+      return { kind, entry, leftMs, store };
     }
-    check.rangAt = Date.now();
-    saveEndStopCheck(check);
-    return check;
+    return null;
   };
 
   const showQuitConfirmIfNeeded = () => {
-    const check = repairEndStopCheck();
-    const leftMs = endStopRemainingMs(check);
-    if (
-      !check ||
-      check.date !== todayStr() ||
-      !check.rang ||
-      check.pressed ||
-      check.failed ||
-      leftMs == null ||
-      leftMs <= 0
-    ) {
+    const active = activeStopConfirm();
+    if (!active) {
       hideQuitConfirm();
       return;
     }
     dismissFocusIfOpen();
     if (quitConfirmMessage) {
-      quitConfirmMessage.textContent = `今日はここまで？（残り${Math.ceil(leftMs / 1000)}秒）`;
+      const prompt = STOP_CONFIRM_PROMPT[active.kind] || 'やめた？';
+      quitConfirmMessage.textContent = `${prompt}（残り${Math.ceil(active.leftMs / 1000)}秒）`;
     }
     if (quitConfirmOverlay) quitConfirmOverlay.hidden = false;
   };
 
-  const beginEndStopCheck = (kind = 'endTime') => {
-    if (kind !== 'endTime') return;
+  const beginEndStopCheck = (kind) => {
+    if (!STOP_CONFIRM_KINDS.includes(kind)) return;
     const today = todayStr();
-    const existing = loadEndStopCheck();
+    let store = loadStopConfirm();
+    if (!store || store.date !== today) {
+      store = { date: today };
+    }
+    const existing = store[kind];
     // 有効な rangAt 付きで既に決着済みなら二重に開始しない
     if (
       existing &&
-      existing.date === today &&
       Number.isFinite(existing.rangAt) &&
       (existing.pressed || existing.failed)
     ) {
@@ -864,39 +909,30 @@ if (remainingEl) {
     // 境界通過の瞬間。未決着・rangAt 欠落はここから3分の窓を（再）開始する
     const keepAt =
       existing &&
-      existing.date === today &&
       Number.isFinite(existing.rangAt) &&
       !existing.pressed &&
       !existing.failed
         ? existing.rangAt
         : Date.now();
-    saveEndStopCheck({
-      date: today,
+    store[kind] = {
       rang: true,
       rangAt: keepAt,
       pressed: false,
       failed: false,
-    });
+    };
+    saveStopConfirm(store);
     showQuitConfirmIfNeeded();
   };
 
   const markEndStopPressed = () => {
-    const check = repairEndStopCheck();
-    const leftMs = endStopRemainingMs(check);
-    if (
-      !check ||
-      check.date !== todayStr() ||
-      !check.rang ||
-      check.pressed ||
-      check.failed ||
-      leftMs == null ||
-      leftMs <= 0
-    ) {
-      return;
-    }
-    check.pressed = true;
-    saveEndStopCheck(check);
+    const active = activeStopConfirm();
+    if (!active) return;
+    const store = active.store;
+    store[active.kind] = { ...active.entry, pressed: true };
+    saveStopConfirm(store);
     hideQuitConfirm();
+    // 別 kind がまだ待ちなら続けて出す
+    showQuitConfirmIfNeeded();
   };
 
   if (quitConfirmBtn) {
@@ -976,7 +1012,8 @@ if (remainingEl) {
           ? '休憩しよう！'
           : '今日はここまで。お疲れさまでした！';
       ringOnce(p.lunchStart ? 'lunchStart' : 'endTime', `${kind}の時間になりました`, body);
-      // 完全終了は音と同時に「やめた」確認を開始する（昼休憩開始は後回し）
+      // 昼休憩開始・完全終了は音と同時に「やめた」確認を開始する
+      if (p.lunchStart) beginEndStopCheck('lunchStart');
       if (p.endTime) beginEndStopCheck('endTime');
     }
     if (p.lunchEnd) {
@@ -1038,18 +1075,16 @@ if (remainingEl) {
     let stats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
     const today = todayStr();
     if (!stats || stats.date !== today) {
-      // 完全終了が鳴ったあと「やめた」を押さなかった場合の保険。
+      // 「やめた」を押さなかった場合の保険。
       // 通常は3分タイムアウトでその日に失敗済み（failed）。アプリ停止で逃した場合だけここで足す。
-      const endStop = loadEndStopCheck();
-      if (
-        stats &&
-        endStop &&
-        endStop.date === stats.date &&
-        endStop.rang &&
-        !endStop.pressed &&
-        !endStop.failed
-      ) {
-        stats.failures = (stats.failures || 0) + 1;
+      const stopConfirm = loadStopConfirm();
+      if (stats && stopConfirm && stopConfirm.date === stats.date) {
+        STOP_CONFIRM_KINDS.forEach((kind) => {
+          const entry = stopConfirm[kind];
+          if (entry && entry.rang && !entry.pressed && !entry.failed) {
+            stats.failures = (stats.failures || 0) + 1;
+          }
+        });
       }
       // 前日に遊びをしていて失敗0回だったら進化させる
       if (stats && stats.plays > 0 && stats.failures === 0) {
@@ -1107,33 +1142,30 @@ if (remainingEl) {
     console.log('3分以内に休憩できませんでした（今日の失敗回数を+1）');
   };
 
-  // 完全終了の「やめた」を3分以内に押さなかったら、その場で失敗にする
+  // 「やめた」を3分以内に押さなかったら、その場で失敗にする（昼休憩開始・完全終了）
   const evaluateEndStopTimeout = () => {
-    const check = repairEndStopCheck();
-    if (
-      !check ||
-      check.date !== todayStr() ||
-      !check.rang ||
-      check.pressed ||
-      check.failed
-    ) {
-      return;
-    }
-    const leftMs = endStopRemainingMs(check);
-    // rangAt 修復直後など、まだ窓が決まっていないときは失敗にしない
-    if (leftMs == null) {
-      showQuitConfirmIfNeeded();
-      return;
-    }
-    if (leftMs > 0) {
-      showQuitConfirmIfNeeded();
-      return;
-    }
-    check.failed = true;
-    saveEndStopCheck(check);
-    hideQuitConfirm();
-    recordFailure();
-    console.log('完全終了後3分以内に「やめた」を押せませんでした（今日の失敗回数を+1）');
+    const store = repairStopConfirm();
+    if (!store || store.date !== todayStr()) return;
+    let changed = false;
+    STOP_CONFIRM_KINDS.forEach((kind) => {
+      const entry = store[kind];
+      if (!entry || !entry.rang || entry.pressed || entry.failed) return;
+      const leftMs = stopEntryRemainingMs(entry);
+      // rangAt 修復直後など、まだ窓が決まっていないときは失敗にしない
+      if (leftMs == null) return;
+      if (leftMs > 0) return;
+      entry.failed = true;
+      store[kind] = entry;
+      changed = true;
+      recordFailure();
+      console.log(
+        kind === 'lunchStart'
+          ? '昼休憩開始後3分以内に「やめた」を押せませんでした（今日の失敗回数を+1）'
+          : '完全終了後3分以内に「やめた」を押せませんでした（今日の失敗回数を+1）',
+      );
+    });
+    if (changed) saveStopConfirm(store);
+    showQuitConfirmIfNeeded();
   };
 
   const handleTimerFinished = (label) => {
@@ -1378,7 +1410,7 @@ if (remainingEl) {
   applyPendingCloseLockFromRestrictSave(timerState);
   allowCloseIfLunchBreak();
   // リロード・別画面から戻っても、未回答の「やめた」確認を出し直す（期限切れなら失敗計上）
-  repairEndStopCheck();
+  repairStopConfirm();
   evaluateEndStopTimeout();
   showQuitConfirmIfNeeded();
 
