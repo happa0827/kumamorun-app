@@ -6,7 +6,7 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { getDatabase, ref, set, onValue, runTransaction, get } from 'firebase/database';
+import { getDatabase, ref, set, onValue, runTransaction, get, onDisconnect, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from './firebase-config.js';
 
 // --- Firebase 初期化 ---
@@ -78,7 +78,7 @@ const STORAGE_KEY = 'countdown';
 // 遊び/休憩の既定時間を保存するキー
 const SETTINGS_KEY = 'settings';
 // 稼働中タイマーの状態を保存するキー（ページ遷移をまたいで継続させる）
-// { label, duration, running, endAt, remaining, warned, finished, eyeBreaksSent }
+// { label, duration, running, endAt, startedAt, remaining, warned, finished, eyeBreaksSent }
 const TIMER_KEY = 'timerState';
 // スタート制限（昼休憩・完全終了）の設定を保存するキー。平日/週末で別々に持つ。
 // { weekday: { lunchStart, lunchEnd, endTime }, weekend: { lunchStart, lunchEnd, endTime } }
@@ -93,6 +93,12 @@ const isWeekend = () => {
 };
 // その日の遊び回数・失敗回数を保存するキー（{ date, plays, failures }）
 const DAILY_KEY = 'dailyStats';
+// 直近7日分 { 'YYYY-MM-DD': { plays, failures } }
+const DAILY_HISTORY_KEY = 'dailyHistory';
+const DAILY_HISTORY_DAYS = 7;
+// 遊び完走後の休憩開始猶予。スナップショットと判定の両方で使う。
+const PLAY_FINISHED_KEY = 'playFinishedAt';
+const REWARD_WINDOW_MS = 3 * 60 * 1000;
 // 制限アラーム後の「やめた」確認。端末ローカルのみ。
 // 新形式: { date, lunchStart?: entry, endTime?: entry }
 // entry = { rang, rangAt, pressed, failed }
@@ -103,6 +109,85 @@ const END_STOP_CHECK_KEY = 'endStopCheck';
 const nowHHMM = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+// ローカル日付を "YYYY-MM-DD" で返す（UTCではなく端末の日付）
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const shiftDateStr = (yyyyMmDd, deltaDays) => {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + deltaDays);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
+const loadDailyHistory = () => {
+  const raw = JSON.parse(localStorage.getItem(DAILY_HISTORY_KEY) || '{}');
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+};
+
+const pruneDailyHistory = (history, today) => {
+  const allowed = new Set();
+  for (let i = 0; i < DAILY_HISTORY_DAYS; i += 1) allowed.add(shiftDateStr(today, -i));
+  const next = {};
+  Object.keys(history).forEach((date) => {
+    if (allowed.has(date) && history[date] && typeof history[date] === 'object') {
+      next[date] = {
+        plays: history[date].plays || 0,
+        failures: history[date].failures || 0,
+      };
+    }
+  });
+  return next;
+};
+
+const putDailyHistoryEntry = (date, plays, failures) => {
+  const today = todayStr();
+  const history = pruneDailyHistory(
+    { ...loadDailyHistory(), [date]: { plays: plays || 0, failures: failures || 0 } },
+    today,
+  );
+  localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(history));
+  return history;
+};
+
+const mergeDailyHistory = (local, cloud, today, keepTodayLocal) => {
+  const localObj = local && typeof local === 'object' && !Array.isArray(local) ? local : {};
+  const cloudObj = cloud && typeof cloud === 'object' && !Array.isArray(cloud) ? cloud : {};
+  const dates = new Set([...Object.keys(localObj), ...Object.keys(cloudObj)]);
+  const out = {};
+  dates.forEach((date) => {
+    const l = localObj[date];
+    const c = cloudObj[date];
+    if (date === today && keepTodayLocal && l) out[date] = l;
+    else if (c) out[date] = c;
+    else if (l) out[date] = l;
+  });
+  return pruneDailyHistory(out, today);
+};
+
+// サイト用。無い日は 0。success = その日遊びが1回以上かつ失敗0（進化判定と同じ）
+const weekRecords = () => {
+  const today = todayStr();
+  const hist = loadDailyHistory();
+  const todayStats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
+  const days = [];
+  for (let i = DAILY_HISTORY_DAYS - 1; i >= 0; i -= 1) {
+    const date = shiftDateStr(today, -i);
+    const rec = todayStats && todayStats.date === date ? todayStats : hist[date];
+    const plays = rec ? rec.plays || 0 : 0;
+    const failures = rec ? rec.failures || 0 : 0;
+    days.push({
+      date,
+      plays,
+      failures,
+      success: plays > 0 && failures === 0,
+    });
+  }
+  return days;
 };
 
 // スタート制限の時刻を今と比べる（input type=time の秒付きも HH:MM にする）
@@ -215,6 +300,176 @@ const lunchBreakRemaining = () => {
   if (now >= start && now < end) return Math.ceil((end - now) / 1000);
   return null;
 };
+
+const rewardWindowRemainingSec = () => {
+  const playFinishedAt = Number(localStorage.getItem(PLAY_FINISHED_KEY));
+  if (!playFinishedAt) return null;
+  const left = Math.ceil((playFinishedAt + REWARD_WINDOW_MS - Date.now()) / 1000);
+  return left > 0 ? left : null;
+};
+
+const hhmmToEndAt = (hhmm) => {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  const t = new Date();
+  t.setHours(h, m, 0, 0);
+  return t.getTime();
+};
+
+// スタート時刻。古い timerState には無いので、稼働中なら endAt から逆算する。
+const inferStartedAt = (s) => {
+  if (s && Number.isFinite(s.startedAt)) return s.startedAt;
+  if (s && s.running && s.endAt && Number.isFinite(s.duration)) return s.endAt - s.duration * 1000;
+  return null;
+};
+
+const remainingFromStart = (startedAt, durationSec) => {
+  if (!Number.isFinite(startedAt) || !Number.isFinite(durationSec)) return null;
+  return Math.max(0, Math.ceil((startedAt + durationSec * 1000 - Date.now()) / 1000));
+};
+
+// サイト向けの現在状態。表示（renderIdle / updateDisplay）と同じ優先順位。
+// 遊び/休憩の残りは startedAt + duration から出す（サイトも同じ式で毎秒計算できる）。
+const getLiveStatusSnapshot = () => {
+  const state = JSON.parse(localStorage.getItem(TIMER_KEY) || 'null');
+  const daily = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
+  const lunch = lunchBreakRemaining();
+  const reward = rewardWindowRemainingSec();
+  const blockReason = getStartBlockReason();
+  const startBlocked = !!blockReason;
+
+  const base = {
+    appRunning: true,
+    startBlocked,
+    blockReason: blockReason || null,
+    daily: daily && daily.date ? { date: daily.date, plays: daily.plays || 0, failures: daily.failures || 0 } : null,
+    week: weekRecords(),
+    startedAt: null,
+    duration: null,
+  };
+
+  if (lunch != null) {
+    const all = JSON.parse(localStorage.getItem(RESTRICTIONS_KEY) || '{}');
+    const r = (isWeekend() ? all.weekend : all.weekday) || {};
+    const startedAt = hhmmToEndAt(r.lunchStart);
+    const lunchEndAt = hhmmToEndAt(r.lunchEnd);
+    const duration = startedAt && lunchEndAt ? Math.round((lunchEndAt - startedAt) / 1000) : null;
+    return {
+      ...base,
+      keeping: true,
+      phase: 'lunch',
+      label: '昼休憩中（終了まで）',
+      remainingSec: remainingFromStart(startedAt, duration) ?? lunch,
+      startedAt,
+      duration,
+      running: false,
+    };
+  }
+
+  if (state && !state.finished) {
+    const startedAt = inferStartedAt(state);
+    const duration = Number.isFinite(state.duration) ? state.duration : null;
+    const fromStart = remainingFromStart(startedAt, duration);
+    if (state.running) {
+      let label = state.label || '';
+      let remaining = fromStart != null ? fromStart : Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
+      if (state.label === '遊び') {
+        const boundary = nextRestrictionBoundary();
+        if (boundary && boundary.sec < remaining) {
+          remaining = boundary.sec;
+          label = `${state.label}（${boundary.kind}まで）`;
+        }
+      }
+      return {
+        ...base,
+        keeping: true,
+        phase: state.label === '休憩' ? 'break' : 'play',
+        label,
+        remainingSec: remaining,
+        startedAt,
+        duration,
+        running: true,
+      };
+    }
+    return {
+      ...base,
+      keeping: false,
+      phase: 'paused',
+      label: state.label || '',
+      remainingSec: Math.max(0, state.remaining || 0),
+      startedAt,
+      duration,
+      running: false,
+    };
+  }
+
+  if (reward != null) {
+    const playFinishedAt = Number(localStorage.getItem(PLAY_FINISHED_KEY));
+    const duration = REWARD_WINDOW_MS / 1000;
+    return {
+      ...base,
+      keeping: false,
+      phase: 'reward',
+      label: '休憩の猶予',
+      remainingSec: remainingFromStart(playFinishedAt, duration) ?? reward,
+      startedAt: playFinishedAt,
+      duration,
+      running: false,
+    };
+  }
+
+  if (state && state.finished) {
+    return {
+      ...base,
+      keeping: startBlocked,
+      phase: state.endedBy ? 'ended' : 'finished',
+      label: state.label || '',
+      remainingSec: null,
+      running: false,
+    };
+  }
+
+  return {
+    ...base,
+    keeping: startBlocked,
+    phase: 'idle',
+    label: '',
+    remainingSec: null,
+    running: false,
+  };
+};
+
+const liveStatusFingerprint = (s) =>
+  [
+    s.phase,
+    s.label,
+    s.running,
+    s.keeping,
+    s.startedAt,
+    s.duration,
+    s.startBlocked,
+    s.daily && s.daily.date,
+    s.daily && s.daily.plays,
+    s.daily && s.daily.failures,
+    s.week && s.week.map((d) => `${d.date}:${d.plays}:${d.failures}`).join(','),
+  ].join('|');
+
+const offlineLiveStatus = () => ({
+  appRunning: false,
+  keeping: false,
+  phase: 'offline',
+  label: '',
+  remainingSec: null,
+  startedAt: null,
+  duration: null,
+  running: false,
+  startBlocked: false,
+  blockReason: null,
+  daily: null,
+  week: null,
+  updatedAt: serverTimestamp(),
+});
 
 // 境界チェックを最後に実行した時刻（ms）を保持するキー
 const BOUNDARY_WATCH_KEY = 'boundaryWatch';
@@ -694,10 +949,13 @@ if (remainingEl) {
           if (flowersEl) flowersEl.textContent = f;
         }
       });
-      // クラウドの当日統計を取り込んでから、日付が変わっていれば前日を評価する
-      get(ref(db, `users/${user.uid}/dailyStats`))
-        .then((snap) => {
-          const cloud = snap.val();
+      // クラウドの当日統計と直近7日を取り込んでから、日付が変わっていれば前日を評価する
+      Promise.all([
+        get(ref(db, `users/${user.uid}/dailyStats`)),
+        get(ref(db, `users/${user.uid}/dailyHistory`)),
+      ])
+        .then(([statsSnap, historySnap]) => {
+          const cloud = statsSnap.val();
           const local = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
           // 取り込み前にこの端末で記録していたら、その分は DB にまだ無い。
           // 同じ日付なら DB で上書きせず、ローカルを採って DB 側を押し上げる。
@@ -711,6 +969,21 @@ if (remainingEl) {
               set(ref(db, `users/${user.uid}/dailyStats`), merged);
             }
           }
+          const today = todayStr();
+          const mergedHistory = mergeDailyHistory(
+            loadDailyHistory(),
+            historySnap.val(),
+            today,
+            keepLocal,
+          );
+          if (merged && merged.date === today) {
+            mergedHistory[today] = { plays: merged.plays || 0, failures: merged.failures || 0 };
+          }
+          const pruned = pruneDailyHistory(mergedHistory, today);
+          localStorage.setItem(DAILY_HISTORY_KEY, JSON.stringify(pruned));
+          if (JSON.stringify(pruned) !== JSON.stringify(historySnap.val() || {})) {
+            set(ref(db, `users/${user.uid}/dailyHistory`), pruned);
+          }
           evaluateDailyRollover();
         })
         .catch(() => evaluateDailyRollover());
@@ -718,18 +991,8 @@ if (remainingEl) {
     // 未ログイン時は何もしない：進化・花・失敗はすでに localStorage のキャッシュで描画済み
   });
 
-  // 遊び完走からこの時間内に休憩を完走できなければ「失敗」として記録する
-  const REWARD_WINDOW_MS = 3 * 60 * 1000;
-  const PLAY_FINISHED_KEY = 'playFinishedAt';
-
   // 遊び完走後の「休憩の猶予（3分）」の残り秒。猶予中でなければ null。
-  // 遊び完走時のみ playFinishedAt が入るので、その存在＝猶予中を意味する。
-  const rewardWindowRemaining = () => {
-    const playFinishedAt = Number(localStorage.getItem(PLAY_FINISHED_KEY));
-    if (!playFinishedAt) return null;
-    const left = Math.ceil((playFinishedAt + REWARD_WINDOW_MS - Date.now()) / 1000);
-    return left > 0 ? left : null;
-  };
+  const rewardWindowRemaining = rewardWindowRemainingSec;
 
   // --- 進化・お花の仕組み ---
   // 「その日、3分以内に休憩を押せなかった回数が0回」なら翌日にキャラが進化。
@@ -765,12 +1028,6 @@ if (remainingEl) {
     if (r < 66) return '08';
     if (r < 99) return '09';
     return '11'; // 1% の当たり
-  };
-
-  // ローカル日付を "YYYY-MM-DD" で返す（UTCではなく端末の日付）
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
   // --- 制限アラーム後の「やめた」確認（昼休憩開始・完全終了） ---
@@ -834,9 +1091,7 @@ if (remainingEl) {
     const stats = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
     if (stats && stats.date === todayStr() && (stats.failures || 0) > 0) {
       stats.failures -= 1;
-      localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
-      dailyStatsDirty = true;
-      if (failuresEl) failuresEl.textContent = stats.failures;
+      saveDailyStats(stats);
     }
   };
 
@@ -1094,8 +1349,9 @@ if (remainingEl) {
       // 遅延失敗として誤カウントされないよう、期限切れの猶予を掃除する。
       localStorage.removeItem(PLAY_FINISHED_KEY);
       localStorage.removeItem(END_STOP_CHECK_KEY);
+      if (stats) putDailyHistoryEntry(stats.date, stats.plays || 0, stats.failures || 0);
       stats = { date: today, plays: 0, failures: 0 };
-      localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
+      saveDailyStats(stats);
     }
     return stats;
   };
@@ -1115,11 +1371,15 @@ if (remainingEl) {
     localStorage.setItem(DAILY_KEY, JSON.stringify(stats));
     dailyStatsDirty = true;
     renderFailures();
+    const history = putDailyHistoryEntry(stats.date, stats.plays || 0, stats.failures || 0);
     // ログイン中はクラウドにも保存して端末間で同期する
     if (currentUser) {
       set(ref(db, `users/${currentUser.uid}/dailyStats`), stats)
         .then(() => console.log('当日の統計をクラウドに保存しました', stats))
         .catch((e) => console.log('当日の統計のクラウド保存に失敗しました', e));
+      set(ref(db, `users/${currentUser.uid}/dailyHistory`), history)
+        .then(() => console.log('週間の統計をクラウドに保存しました', history))
+        .catch((e) => console.log('週間の統計のクラウド保存に失敗しました', e));
     }
   };
 
@@ -1203,11 +1463,13 @@ if (remainingEl) {
     const { duration, label } = JSON.parse(startRequest);
     // 休憩は「開始した時点」で3分以内かを判定する（開始要求は一度しか読まないので1回だけ走る）
     if (label === '休憩') handleRestStarted();
+    const startedAt = Date.now();
     saveTimerState({
       label,
       duration,
       running: true,
-      endAt: Date.now() + duration * 1000,
+      startedAt,
+      endAt: startedAt + duration * 1000,
       remaining: duration,
       warned: false,
       finished: false,
@@ -1384,6 +1646,10 @@ if (remainingEl) {
           // 再開：残り秒数から終了時刻を計算し直す
           if (state.remaining <= 0) return;
           state.endAt = Date.now() + state.remaining * 1000;
+          // 一時停止していた秒をスタート時刻から除き、サイト側の「開始+長さ」計算と残りを一致させる
+          if (Number.isFinite(state.duration)) {
+            state.startedAt = Date.now() - (state.duration - state.remaining) * 1000;
+          }
           state.running = true;
           saveTimerState(state);
           onBoundary = stopAtBoundary;
@@ -1773,6 +2039,72 @@ onAuthStateChanged(auth, (user) => {
     const cloud = snap.val();
     if (cloud) localStorage.setItem(RESTRICTIONS_KEY, JSON.stringify(cloud));
   });
+});
+
+// サイト向け: ログイン中だけ users/{uid}/liveStatus を更新する。
+// 変化時はすぐ書き、残り秒は 20 秒ごとのハートビートで更新する（毎秒は書かない）。
+// 切断時は onDisconnect で appRunning=false にする。
+const LIVE_STATUS_HEARTBEAT_MS = 20 * 1000;
+let liveStatusUid = null;
+let liveStatusTickId = null;
+let lastLiveStatusFp = '';
+let lastLiveStatusHeartbeatAt = 0;
+
+const writeLiveStatus = (uid, snapshot) => {
+  const payload = { ...snapshot, appRunning: true, updatedAt: Date.now() };
+  set(ref(db, `users/${uid}/liveStatus`), payload).catch((e) => {
+    console.log('liveStatus の保存に失敗しました', e);
+  });
+};
+
+const stopLiveStatusSync = (uid) => {
+  if (liveStatusTickId) {
+    clearInterval(liveStatusTickId);
+    liveStatusTickId = null;
+  }
+  lastLiveStatusFp = '';
+  lastLiveStatusHeartbeatAt = 0;
+  if (!uid) return;
+  const statusRef = ref(db, `users/${uid}/liveStatus`);
+  onDisconnect(statusRef)
+    .cancel()
+    .catch(() => {});
+  set(statusRef, offlineLiveStatus()).catch((e) => {
+    console.log('liveStatus のオフライン書き込みに失敗しました', e);
+  });
+};
+
+const startLiveStatusSync = (uid) => {
+  const statusRef = ref(db, `users/${uid}/liveStatus`);
+  onDisconnect(statusRef)
+    .set(offlineLiveStatus())
+    .catch((e) => console.log('onDisconnect の設定に失敗しました', e));
+
+  const push = (force) => {
+    const snapshot = getLiveStatusSnapshot();
+    const fp = liveStatusFingerprint(snapshot);
+    const now = Date.now();
+    const heartbeatDue = now - lastLiveStatusHeartbeatAt >= LIVE_STATUS_HEARTBEAT_MS;
+    if (!force && fp === lastLiveStatusFp && !heartbeatDue) return;
+    lastLiveStatusFp = fp;
+    if (force || heartbeatDue) lastLiveStatusHeartbeatAt = now;
+    writeLiveStatus(uid, snapshot);
+  };
+
+  push(true);
+  liveStatusTickId = setInterval(() => push(false), 1000);
+};
+
+onAuthStateChanged(auth, (user) => {
+  const nextUid = user ? user.uid : null;
+  if (nextUid && nextUid === liveStatusUid && liveStatusTickId) return;
+  if (liveStatusUid && liveStatusUid !== nextUid) stopLiveStatusSync(liveStatusUid);
+  else if (liveStatusTickId) {
+    clearInterval(liveStatusTickId);
+    liveStatusTickId = null;
+  }
+  liveStatusUid = nextUid;
+  if (nextUid) startLiveStatusSync(nextUid);
 });
 
 // --- 共通: 戻る ---
