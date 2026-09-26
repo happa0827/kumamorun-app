@@ -12,6 +12,7 @@ const {
 const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
+const { startVirtualDesktopFollow } = require('./virtual-desktop-win');
 
 // アップデートチェック（v3 は名前付きエクスポート）
 const { updateElectronApp } = require('update-electron-app');
@@ -38,6 +39,8 @@ let mainWindow = null;
 let miniWindow = null;
 let tray = null;
 let isQuitting = false;
+// 仮想デスクトップ追従のハンドル（Windows 以外では何もしない）
+let desktopFollow = null;
 // タイマー完了後の常時最前面。最小化やトレイ隠しで画面を消されないようにする。
 let finishPinned = false;
 // 'keep' のときは制限アラームの解除や設定保存では外さない
@@ -394,6 +397,10 @@ if (!gotLock) {
     createWindow();
     createTray();
 
+    // Windows で仮想デスクトップを切り替えたら、表示中のウィンドウを今の画面へ連れてくる。
+    // トレイに隠れているときと最小化中は動かさない。
+    desktopFollow = startVirtualDesktopFollow(() => [mainWindow, miniWindow]);
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
       else if (mainWindow) mainWindow.show();
@@ -408,5 +415,6 @@ if (!gotLock) {
   // 終了時にグローバルショートカットを OS へ返す
   app.on('will-quit', () => {
     globalShortcut.unregisterAll();
+    if (desktopFollow) desktopFollow.stop();
   });
 }
