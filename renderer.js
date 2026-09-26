@@ -1182,9 +1182,13 @@ if (remainingEl) {
   const markEndStopPressed = () => {
     const active = activeStopConfirm();
     if (!active) return;
+    const kind = active.kind;
     const store = active.store;
-    store[active.kind] = { ...active.entry, pressed: true };
+    store[kind] = { ...active.entry, pressed: true };
     saveStopConfirm(store);
+    if (kind === 'endTime' && window.kumamorunAPI && window.kumamorunAPI.sleepNow) {
+      window.kumamorunAPI.sleepNow();
+    }
     hideQuitConfirm();
     // 別 kind がまだ待ちなら続けて出す
     showQuitConfirmIfNeeded();

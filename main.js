@@ -10,6 +10,7 @@ const {
   globalShortcut,
 } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 
 // アップデートチェック（v3 は名前付きエクスポート）
@@ -116,6 +117,48 @@ const synthesizeSpeech = (text) =>
         resolve(stdout.trim());
       },
     );
+  });
+
+// OS をスリープ（休止ではない）。失敗してもアプリは落とさない。
+const requestSystemSleep = () =>
+  new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      const className = `SuspendHelper_${crypto.randomUUID().replace(/-/g, '')}`;
+      const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class ${className} {
+  [DllImport("powrprof.dll", SetLastError=true)]
+  public static extern bool SetSuspendState(bool hibernate, bool forceCritical, bool disableWakeEvent);
+}
+"@
+[${className}]::SetSuspendState($false, $true, $false)
+`;
+      const encoded = Buffer.from(script, 'utf16le').toString('base64');
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+        { windowsHide: true },
+        (err) => {
+          if (err) console.log('スリープに失敗しました', err);
+          resolve();
+        },
+      );
+      return;
+    }
+    if (process.platform === 'darwin') {
+      execFile(
+        'osascript',
+        ['-e', 'tell application "System Events" to sleep'],
+        (err) => {
+          if (err) console.log('スリープに失敗しました', err);
+          resolve();
+        },
+      );
+      return;
+    }
+    resolve();
   });
 
 // 残り時間の読み上げを呼び出すグローバルショートカット。
@@ -327,6 +370,8 @@ if (!gotLock) {
 
   // 読み上げる文章を WAV（base64）にして返す。鳴らすのは renderer。
   ipcMain.handle('speak:wav', (_e, text) => synthesizeSpeech(String(text || '')));
+
+  ipcMain.handle('system:sleep', () => requestSystemSleep());
 
   // メインウィンドウの #remaining / #label が変わるたびに届く表示内容を中継する
   ipcMain.on('mini:sync', (_e, payload) => {
