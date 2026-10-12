@@ -60,7 +60,7 @@ const createFakeDocument = () => {
 };
 
 globalThis.document = createFakeDocument();
-const { showToast } = await import('../toast.mjs');
+const { showToast, onToastStack } = await import('../toast.mjs');
 
 const region = document.body.children.find((el) => el.getAttribute('aria-live') === 'polite');
 const visible = () =>
@@ -154,35 +154,14 @@ test('main grants the media permission and no longer grants notifications', () =
   assert.equal(main.includes("'notifications'"), false, 'main.js still grants notifications');
 });
 
-test('the toast layer sits above both overlays and below the dev banner', () => {
-  const css = read('styles.css');
-  const zIndex = (selector) => {
-    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const found = new RegExp(`${escaped}\\s*\\{`).exec(css);
-    assert.ok(found, `missing ${selector}`);
-    const open = found.index + found[0].length - 1;
-    let depth = 0;
-    let close = open;
-    for (let i = open; i < css.length; i++) {
-      if (css[i] === '{') depth += 1;
-      else if (css[i] === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          close = i;
-          break;
-        }
-      }
-    }
-    const block = css.slice(open + 1, close);
-    const value = block.match(/z-index\s*:\s*(-?\d+(?:\.\d+)?)/);
-    assert.ok(value, `${selector} z-index`);
-    return Number(value[1]);
-  };
-  const toast = zIndex('.toast-region');
-  const quit = zIndex('.quit-confirm-overlay');
-  const focus = zIndex('.focus-overlay');
-  const banner = zIndex('.dev-banner');
-  assert.ok(toast > quit, `toast ${toast} quit ${quit}`);
-  assert.ok(toast > focus, `toast ${toast} focus ${focus}`);
-  assert.ok(toast < banner, `toast ${toast} banner ${banner}`);
+test('the stack callback reports how many cards remain', () => {
+  const counts = [];
+  onToastStack((count) => counts.push(count));
+  showToast('遊び が終わりました', 'お疲れさまでした！');
+  showToast('進化した！✨', 'くまもーるんが育ったよ！');
+  closeButtonOf(region.children[0]).dispatch('click');
+  assert.deepEqual(counts, [1, 2, 1]);
+  mock.timers.tick(6000);
+  assert.deepEqual(counts, [1, 2, 1, 0]);
+  onToastStack(null);
 });

@@ -886,6 +886,19 @@ select {
   }
 }
 
+body.toast-host {
+  min-height: 0;
+  display: block;
+  background: transparent;
+}
+
+body.toast-host .toast-region {
+  position: static;
+  right: auto;
+  bottom: auto;
+  width: 20rem;
+}
+
 /* ===== ミニモード（mini.html: 枠なし・背景透過の小さいウィンドウ） ===== */
 /* ウィンドウが透過なので body の背景は消す。余白は影を出すための逃げ。 */
 .mini-body {

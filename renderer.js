@@ -8,7 +8,11 @@ import {
 } from 'firebase/auth';
 import { getDatabase, ref, set, onValue, runTransaction, get, onDisconnect, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from './firebase-config.js';
-import { showToast } from './toast.mjs';
+import { createShowToast } from './toast-place.js';
+
+const showToast = createShowToast(({ title, body }) => {
+  if (window.kumamorunAPI) window.kumamorunAPI.showToast(title, body);
+});
 
 // --- Firebase 初期化 ---
 const firebaseApp = initializeApp(firebaseConfig);

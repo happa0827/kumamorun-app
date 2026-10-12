@@ -4,6 +4,15 @@
 const TOAST_MS = 6000;
 
 const region = mountRegion();
+let onChange = null;
+
+export function onToastStack(fn) {
+  onChange = fn;
+}
+
+function notify() {
+  if (onChange) onChange(region.children.length);
+}
 
 export function showToast(title, body) {
   const { toast, close } = buildToast(title, body);
@@ -15,6 +24,7 @@ export function showToast(title, body) {
   const dismiss = () => {
     hold();
     toast.remove();
+    notify();
   };
   const arm = () => {
     hold();
@@ -25,6 +35,7 @@ export function showToast(title, body) {
   toast.addEventListener('pointerleave', arm);
   region.append(toast);
   arm();
+  notify();
 }
 
 function mountRegion() {
