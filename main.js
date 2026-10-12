@@ -300,8 +300,8 @@ const createToastWindow = () => {
   if (toastWindow && !toastWindow.isDestroyed()) return;
 
   toastWindow = new BrowserWindow({
-    width: 320,
-    height: 80,
+    width: 600,
+    height: 280,
     show: false,
     frame: false,
     transparent: true,

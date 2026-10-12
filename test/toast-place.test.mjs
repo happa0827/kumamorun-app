@@ -8,16 +8,34 @@ const { acceptToast, placeToastWindow, createShowToast, TOAST_MARGIN } = require
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 
-test('a toast is placed at the bottom-right of the work area', () => {
+test('a 30rem card plus shadow gutter sits at the bottom-right of the work area', () => {
+  const width = 30 * 16 + 7.5 * 16;
+  const height = 280;
+  assert.equal(width, 600);
   assert.deepEqual(
-    placeToastWindow({ x: 10, y: 20, width: 1920, height: 1080 }, { width: 320, height: 72 }),
+    placeToastWindow({ x: 10, y: 20, width: 1920, height: 1080 }, { width, height }),
     {
-      x: 10 + 1920 - 320 - TOAST_MARGIN,
-      y: 20 + 1080 - 72 - TOAST_MARGIN,
-      width: 320,
-      height: 72,
+      x: 10 + 1920 - width - TOAST_MARGIN,
+      y: 20 + 1080 - height - TOAST_MARGIN,
+      width,
+      height,
     },
   );
+});
+
+test('the desktop card is larger, accent-bordered, and padded for its shadow', () => {
+  const css = read('styles.css');
+  const host = css.match(/body\.toast-host \.toast-region\s*\{([^}]*)\}/);
+  assert.ok(host, 'toast host region');
+  assert.match(host[1], /width:\s*calc\(30rem \+ 7\.5rem\)/);
+  assert.match(host[1], /padding:\s*3\.75rem/);
+  const card = css.match(/\.toast\s*\{([^}]*)\}/);
+  assert.ok(card, 'toast card');
+  assert.match(card[1], /border:\s*3px solid var\(--accent\)/);
+  assert.match(card[1], /padding:\s*1\.15rem 3\.5rem 1\.15rem 1\.45rem/);
+  assert.match(css, /\.toast-title\s*\{[^}]*font-size:\s*1\.3rem/);
+  assert.match(css, /\.toast-body\s*\{[^}]*font-size:\s*1\.15rem/);
+  assert.match(css, /\.toast-body\s*\{[^}]*color:\s*var\(--text\)/);
 });
 
 test('a toast larger than the work area is clamped inside the margin', () => {
