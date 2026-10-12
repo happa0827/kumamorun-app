@@ -27,6 +27,7 @@
   },
   "trustedDependencies": [
     "koffi",
+    "electron-winstaller",
   ],
   "overrides": {
     "yauzl": "^3.4.0",

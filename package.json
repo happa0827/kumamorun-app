@@ -41,6 +41,7 @@
     "esbuild": "^0.28.1"
   },
   "trustedDependencies": [
-    "koffi"
+    "koffi",
+    "electron-winstaller"
   ]
 }
