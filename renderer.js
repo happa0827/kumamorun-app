@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth';
 import { getDatabase, ref, set, onValue, runTransaction, get, onDisconnect, serverTimestamp } from 'firebase/database';
 import { firebaseConfig } from './firebase-config.js';
+import { showToast } from './toast.mjs';
 
 // --- Firebase 初期化 ---
 const firebaseApp = initializeApp(firebaseConfig);
@@ -1242,7 +1243,7 @@ if (remainingEl) {
     restrictionAlarmPlaying = true;
     // 昼休憩開始／昼休憩終了／完全終了。鳴っている間は前面固定、鳴り終わったら必ず解除する
     if (window.kumamorunAPI) window.kumamorunAPI.surfaceWindow('alarm');
-    new Notification(title, { body });
+    showToast(title, body);
     Promise.resolve(playBeep())
       .catch(() => {})
       .finally(() => {
@@ -1305,12 +1306,10 @@ if (remainingEl) {
         // 咲いた花を当日分として保存し、その日はずっとこの花を表示する
         localStorage.setItem(BLOOM_KEY, JSON.stringify({ flower, date: todayStr() }));
         if (kumamoruEl) kumamoruEl.src = FLOWER_IMAGES[flower];
-        new Notification('お花が咲いた！🌸', {
-          body: `${FLOWER_NAMES[flower]} が咲きました！お花+${gain}`,
-        });
+        showToast('お花が咲いた！🌸', `${FLOWER_NAMES[flower]} が咲きました！お花+${gain}`);
         playBeep(1);
       } else {
-        new Notification('進化した！✨', { body: 'くまもーるんが育ったよ！' });
+        showToast('進化した！✨', 'くまもーるんが育ったよ！');
         playBeep(1);
       }
     });
@@ -1566,7 +1565,7 @@ if (remainingEl) {
         if (lunchBreakRemaining() != null) window.kumamorunAPI.releaseAlwaysOnTop(true);
         else window.kumamorunAPI.surfaceWindow('keep');
       }
-      new Notification(`${state.label} が終わりました`, { body: 'お疲れさまでした！' });
+      showToast(`${state.label} が終わりました`, 'お疲れさまでした！');
       playBeep(ALARM_SEC, getSpeakerId(state.label === '休憩' ? 'break' : 'play'));
       handleTimerFinished(state.label);
       // ここから先の表示は renderIdle が引き継ぐ（休憩の猶予・昼休憩の自動表示）。
@@ -1604,9 +1603,7 @@ if (remainingEl) {
         if (marks > (state.eyeBreaksSent || 0)) {
           state.eyeBreaksSent = marks;
           saveTimerState(state);
-          new Notification('20-20-20ルール', {
-            body: '20秒間、20フィート（約6m）先を見て目を休めましょう👀',
-          });
+          showToast('20-20-20ルール', '20秒間、20フィート（約6m）先を見て目を休めましょう👀');
           playEyeBreakChime();
         }
       }
@@ -1614,9 +1611,7 @@ if (remainingEl) {
       if (warnAt && state.running && !state.warned && remaining > 0 && remaining <= warnAt) {
         state.warned = true;
         saveTimerState(state);
-        new Notification(`${state.label} まもなく終了`, {
-          body: `残り${warnAt / 60}分です`,
-        });
+        showToast(`${state.label} まもなく終了`, `残り${warnAt / 60}分です`);
         playWarnBeeps();
       }
       if (remaining <= 0 && state.running && !state.endedBy) finish();

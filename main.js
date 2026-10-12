@@ -383,9 +383,8 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    // 通知と、スピーカー一覧の名前取得（media）だけを許可する。それ以外は拒否。
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      callback(permission === 'media' || permission === 'notifications');
+      callback(permission === 'media');
     });
 
     // 既定のメニューバー（File / Edit / View …）は**配布版でだけ**外す。ウィンドウ生成前に呼ぶ。

@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 class FakeElement {
   constructor(tagName) {
@@ -138,6 +138,21 @@ test('hovering holds a toast; leaving restarts the full 6000 ms', () => {
 
 const root = new URL('../', import.meta.url);
 const read = (file) => readFileSync(new URL(file, root), 'utf8');
+
+test('neither the sources nor the committed bundle reach for OS notifications', () => {
+  const sources = readdirSync(root).filter((f) => /\.m?js$/.test(f));
+  assert.ok(['renderer.js', 'main.js', 'bundle.js'].every((f) => sources.includes(f)), `scanned ${sources}`);
+  const offenders = sources
+    .map((file) => [file, read(file).match(/\bNotification\b/g)?.length ?? 0])
+    .filter(([, count]) => count > 0);
+  assert.deepEqual(offenders, []);
+});
+
+test('main grants the media permission and no longer grants notifications', () => {
+  const main = read('main.js');
+  assert.equal(main.includes("permission === 'media'"), true, 'main.js dropped the media grant');
+  assert.equal(main.includes("'notifications'"), false, 'main.js still grants notifications');
+});
 
 test('the toast layer sits above both overlays and below the dev banner', () => {
   const css = read('styles.css');
