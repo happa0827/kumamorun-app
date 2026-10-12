@@ -1,6 +1,6 @@
 {
   "name": "Kumamorun",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "くまもーるんと一緒に休憩習慣を育てるデスクトップタイマーアプリ",
   "license": "ISC",
   "author": "happa0827",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
+    "koffi": "^3.3.1",
     "update-electron-app": "^3.3.0"
   },
   "overrides": {
@@ -38,5 +39,8 @@
     "@electron/fuses": "^1.8.0",
     "electron": "^43.0.0",
     "esbuild": "^0.28.1"
-  }
+  },
+  "trustedDependencies": [
+    "koffi"
+  ]
 }

@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld('kumamorunAPI', {
   registerSpeakShortcut: (accelerator) => ipcRenderer.invoke('shortcut:speak', accelerator),
   speakWav: (text) => ipcRenderer.invoke('speak:wav', text),
   onSpeakRemaining: (cb) => ipcRenderer.on('speak-remaining', () => cb()),
+
+  sleepNow: () => ipcRenderer.invoke('system:sleep'),
 });
