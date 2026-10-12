@@ -13,6 +13,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { startVirtualDesktopFollow } = require('./virtual-desktop-win');
+const { acceptToast, placeToastWindow, nudgeBounds } = require('./toast-place');
 
 // アップデートチェック（v3 は名前付きエクスポート）
 const { updateElectronApp } = require('update-electron-app');
@@ -37,6 +38,8 @@ const windowWebPrefs = () => ({
 
 let mainWindow = null;
 let miniWindow = null;
+let toastWindow = null;
+let toastQueue = [];
 let tray = null;
 let isQuitting = false;
 // 仮想デスクトップ追従のハンドル（Windows 以外では何もしない）
@@ -280,6 +283,60 @@ const createMiniWindow = () => {
   });
 };
 
+const toastReady = () =>
+  toastWindow &&
+  !toastWindow.isDestroyed() &&
+  !toastWindow.webContents.isLoading() &&
+  !toastWindow.webContents.isLoadingMainFrame();
+
+const flushToastQueue = () => {
+  if (!toastReady()) return;
+  const queued = toastQueue;
+  toastQueue = [];
+  for (const toast of queued) toastWindow.webContents.send('toast:present', toast);
+};
+
+const createToastWindow = () => {
+  if (toastWindow && !toastWindow.isDestroyed()) return;
+
+  toastWindow = new BrowserWindow({
+    width: 600,
+    height: 280,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    focusable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: windowWebPrefs(),
+  });
+  toastWindow.setAlwaysOnTop(true, 'screen-saver');
+  // カードの外は下のアプリへクリックを通す。forward で乗ったときだけ掴む。
+  toastWindow.setIgnoreMouseEvents(true, { forward: true });
+  toastWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  toastWindow.loadFile(path.join(__dirname, 'toast.html'));
+  toastWindow.webContents.on('did-finish-load', flushToastQueue);
+  toastWindow.on('closed', () => {
+    toastWindow = null;
+  });
+};
+
+const presentToast = (toast) => {
+  createToastWindow();
+  if (!toastReady()) {
+    toastQueue.push(toast);
+    return;
+  }
+  toastWindow.webContents.send('toast:present', toast);
+};
+
 const createTray = () => {
   const iconPath = path.join(__dirname, 'src', 'kumamoru.png');
   const icon = nativeImage.createFromPath(iconPath);
@@ -382,10 +439,58 @@ if (!gotLock) {
     if (miniWindow) miniWindow.webContents.send('mini:text', lastMiniText);
   });
 
+  ipcMain.on('toast:show', (_e, payload) => {
+    const toast = acceptToast(payload);
+    if (!toast) return;
+    presentToast(toast);
+  });
+
+  ipcMain.on('toast:layout', (event, payload) => {
+    if (!toastWindow || toastWindow.isDestroyed() || event.sender !== toastWindow.webContents) return;
+    if (!payload || typeof payload.count !== 'number' || payload.count < 1) {
+      toastWindow.hide();
+      toastWindow.setIgnoreMouseEvents(true, { forward: true });
+      return;
+    }
+    const primary = screen.getPrimaryDisplay();
+    const bounds = placeToastWindow(primary.workArea, payload, {
+      pad: {
+        top: payload.padTop,
+        right: payload.padRight,
+        bottom: payload.padBottom,
+        left: payload.padLeft,
+      },
+      card: {
+        x: payload.cardLeft,
+        y: payload.cardTop,
+        right: payload.cardRight,
+        bottom: payload.cardBottom,
+      },
+      displayBounds: primary.bounds,
+      displays: screen.getAllDisplays().map((display) => display.bounds),
+    });
+    if (!bounds) return;
+    const rect = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    toastWindow.setBounds(rect);
+    const actual = toastWindow.getBounds();
+    if (actual.x !== rect.x || actual.y !== rect.y || actual.width !== rect.width || actual.height !== rect.height) {
+      toastWindow.setBounds(nudgeBounds(rect, actual));
+    }
+    if (!toastWindow.isVisible()) {
+      toastWindow.setAlwaysOnTop(true, 'screen-saver');
+      toastWindow.showInactive();
+    }
+  });
+
+  ipcMain.on('toast:interactive', (event, on) => {
+    if (!toastWindow || toastWindow.isDestroyed() || event.sender !== toastWindow.webContents) return;
+    if (on) toastWindow.setIgnoreMouseEvents(false);
+    else toastWindow.setIgnoreMouseEvents(true, { forward: true });
+  });
+
   app.whenReady().then(() => {
-    // 通知と、スピーカー一覧の名前取得（media）だけを許可する。それ以外は拒否。
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-      callback(permission === 'media' || permission === 'notifications');
+      callback(permission === 'media');
     });
 
     // 既定のメニューバー（File / Edit / View …）は**配布版でだけ**外す。ウィンドウ生成前に呼ぶ。
@@ -395,6 +500,7 @@ if (!gotLock) {
     if (app.isPackaged) Menu.setApplicationMenu(null);
 
     createWindow();
+    createToastWindow();
     createTray();
 
     // Windows で仮想デスクトップを切り替えたら、表示中のウィンドウを今の画面へ連れてくる。

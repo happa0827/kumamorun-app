@@ -27,4 +27,10 @@ contextBridge.exposeInMainWorld('kumamorunAPI', {
   onSpeakRemaining: (cb) => ipcRenderer.on('speak-remaining', () => cb()),
 
   sleepNow: () => ipcRenderer.invoke('system:sleep'),
+
+  // トーストは別ウィンドウ。この窓は文言を渡すだけ。
+  showToast: (title, body) => ipcRenderer.send('toast:show', { title, body }),
+  onToast: (cb) => ipcRenderer.on('toast:present', (_e, payload) => cb(payload || {})),
+  toastLayout: (payload) => ipcRenderer.send('toast:layout', payload),
+  toastInteractive: (on) => ipcRenderer.send('toast:interactive', !!on),
 });
