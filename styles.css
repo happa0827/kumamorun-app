@@ -892,6 +892,7 @@ body.toast-host {
   min-height: 0;
   display: block;
   background: transparent;
+  overflow: hidden;
 }
 
 body.toast-host .toast-region {

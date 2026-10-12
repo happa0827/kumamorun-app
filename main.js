@@ -13,7 +13,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { startVirtualDesktopFollow } = require('./virtual-desktop-win');
-const { acceptToast, placeToastWindow } = require('./toast-place');
+const { acceptToast, placeToastWindow, nudgeBounds } = require('./toast-place');
 
 // アップデートチェック（v3 は名前付きエクスポート）
 const { updateElectronApp } = require('update-electron-app');
@@ -452,10 +452,30 @@ if (!gotLock) {
       toastWindow.setIgnoreMouseEvents(true, { forward: true });
       return;
     }
-    const { workArea } = screen.getPrimaryDisplay();
-    const bounds = placeToastWindow(workArea, payload);
+    const primary = screen.getPrimaryDisplay();
+    const bounds = placeToastWindow(primary.workArea, payload, {
+      pad: {
+        top: payload.padTop,
+        right: payload.padRight,
+        bottom: payload.padBottom,
+        left: payload.padLeft,
+      },
+      card: {
+        x: payload.cardLeft,
+        y: payload.cardTop,
+        right: payload.cardRight,
+        bottom: payload.cardBottom,
+      },
+      displayBounds: primary.bounds,
+      displays: screen.getAllDisplays().map((display) => display.bounds),
+    });
     if (!bounds) return;
-    toastWindow.setBounds(bounds);
+    const rect = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    toastWindow.setBounds(rect);
+    const actual = toastWindow.getBounds();
+    if (actual.x !== rect.x || actual.y !== rect.y || actual.width !== rect.width || actual.height !== rect.height) {
+      toastWindow.setBounds(nudgeBounds(rect, actual));
+    }
     if (!toastWindow.isVisible()) {
       toastWindow.setAlwaysOnTop(true, 'screen-saver');
       toastWindow.showInactive();
