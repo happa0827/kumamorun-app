@@ -11,3 +11,6 @@ out/
 # ログ。electron-windows-sign.log は署名オプションを丸ごと出力し、
 # PFX のパスワードが平文で残るので絶対にコミットしない
 *.log
+
+# 7z
+kumamorun-new.7z
