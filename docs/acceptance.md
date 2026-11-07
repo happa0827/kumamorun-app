@@ -58,7 +58,7 @@ Tauri 版を Electron 版の置き換えとして切り替える前に、Windows
 | F3 | アプリを強制終了 | `appRunning` が `false` になる | 実機 |
 | F4 | ネットワークを切って戻す | 再接続後、`onDisconnect` が登録し直され、`liveStatus` が最新に書き直される | 実機 |
 | F5 | `users/{uid}` と `liveStatus` | スキーマが Electron 版と同じで、status-kumamorun が読める | 実機 |
-| F6 | 本番ビルド | 開発用パスワードが含まれない | 実機 |
+| F6 | 本番ビルド | 開発用パスワードが含まれない | 実機（dist を grep して確認済み） |
 
 ## 6. Windows の挙動
 
