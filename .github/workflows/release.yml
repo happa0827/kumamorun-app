@@ -1,0 +1,72 @@
+# `v*` タグ(例: v2.0.0)を push すると、Windows 向けのインストーラーをビルドして
+# GitHub Releases の下書きにアップロードする。下書きを確認して公開すると、
+# 配布(アプリ内の更新通知を含む)が始まる。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # 型検査とテストが通らないものは配布しない。
+      - name: Test
+        run: |
+          bunx tsc --noEmit
+          bun test
+          cargo test --lib --manifest-path src-tauri/Cargo.toml
+
+      - name: Import code signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $pw = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath "$env:RUNNER_TEMP\cert.pfx" -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # アップデーター署名。bundle.createUpdaterArtifacts が true のとき秘密鍵が必須。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: bun tauri
+          args: --bundles nsis
+          uploadUpdaterSignatures: true
+          uploadUpdaterJson: true
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Kumamorun ${{ github.ref_name }}'
+          releaseBody: |
+            ## ダウンロード
+            - Windows: `Kumamorun_*_x64-setup.exe`
+          releaseDraft: true
+          prerelease: false
