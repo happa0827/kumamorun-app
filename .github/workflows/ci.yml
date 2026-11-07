@@ -1,0 +1,51 @@
+# main への push で、型検査・テスト・リリースビルドを走らせる。
+#
+# 目的は2つ。
+# 1. 壊れた変更を、タグを打つ前に見つける。
+# 2. Rust のビルドキャッシュを main に作る。タグの実行で作ったキャッシュは、そのタグの中でしか
+#    読めない。main で作ったキャッシュは、すべてのタグから読める。リリースが速くなる。
+#
+# ジョブ名(build)とキャッシュの設定は release.yml と同じにしてある。違うとキャッシュを共有できない。
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test
+        run: |
+          bunx tsc --noEmit
+          bun test
+          cargo test --lib --manifest-path src-tauri/Cargo.toml
+
+      # リリースと同じ release プロファイルでコンパイルして、キャッシュに入れる。
+      # インストーラーは作らない(署名の鍵や証明書は使わない)。
+      - name: Build (cache warm-up)
+        run: bun tauri build --no-bundle
