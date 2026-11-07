@@ -61,8 +61,6 @@ jobs:
         with:
           tauriScript: bun tauri
           args: --bundles nsis
-          uploadUpdaterSignatures: true
-          uploadUpdaterJson: true
           tagName: ${{ github.ref_name }}
           releaseName: 'Kumamorun ${{ github.ref_name }}'
           releaseBody: |
