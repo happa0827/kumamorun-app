@@ -21,6 +21,10 @@ fn sample() -> Saved {
     Saved {
         engine,
         settings: Settings::new(Some(1200), Some(300)),
+        progress: Some(Progress {
+            stage: 3,
+            flowers: 7,
+        }),
     }
 }
 
@@ -71,6 +75,33 @@ fn 設定のない古いファイルは初期設定で読める() {
 }
 
 #[test]
+fn 進化段階と花の控えのない古いファイルは_控えなしで読める() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store_in(&dir);
+    store.save(&sample()).unwrap();
+    let path = dir.path().join("state.json");
+    let mut value: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    value.as_object_mut().unwrap().remove("progress");
+    std::fs::write(&path, value.to_string()).unwrap();
+
+    let loaded = store.load().unwrap().unwrap();
+    assert_eq!(loaded.progress, None);
+    assert_eq!(loaded.engine, sample().engine);
+}
+
+#[test]
+fn 書き出しの本文は保存ファイルと同じ形で_控えも含む() {
+    let text = backup_text(&sample()).unwrap();
+    let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(value["version"], 1);
+    assert_eq!(value["progress"]["stage"], 3);
+    assert_eq!(value["progress"]["flowers"], 7);
+    assert!(value["engine"].is_object());
+    assert!(value["settings"].is_object());
+}
+
+#[test]
 fn 上書きして保存できる() {
     let dir = tempfile::tempdir().unwrap();
     let store = store_in(&dir);
@@ -78,6 +109,7 @@ fn 上書きして保存できる() {
         .save(&Saved {
             engine: Engine::new(now()),
             settings: Settings::default(),
+            progress: None,
         })
         .unwrap();
     let saved = sample();

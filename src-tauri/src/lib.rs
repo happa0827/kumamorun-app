@@ -55,6 +55,8 @@ pub fn run() {
             app::plan_evolution,
             app::commit_evolution,
             app::import_cloud,
+            app::mirror_progress,
+            app::export_backup,
             updater::check_update,
             updater::install_update,
             windows::open_mini,

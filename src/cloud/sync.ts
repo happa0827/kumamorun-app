@@ -10,6 +10,7 @@ import {
   commitEvolution,
   getRestrictions,
   importCloud,
+  mirrorProgress,
   planEvolution,
   restoreEvolution,
   saveRestrictions,
@@ -208,9 +209,23 @@ export function startCloudSync(): void {
     if (!account) return;
 
     recordLogin(account.uid).catch(() => {});
+    // 進化段階と花の数が両方そろったら、端末にも控える。クラウドを移すとき、ここから運ぶ。
+    const mirror = () => {
+      const { evolution, flowers } = state;
+      if (evolution === null || flowers === null) return;
+      mirrorProgress(evolution, flowers).catch((e) =>
+        console.warn("進化段階と花の数を端末に控えられませんでした", e),
+      );
+    };
     teardown.push(
-      watchNumber(account.uid, "evolution", (evolution) => update({ evolution })),
-      watchNumber(account.uid, "flowers", (flowers) => update({ flowers })),
+      watchNumber(account.uid, "evolution", (evolution) => {
+        update({ evolution });
+        mirror();
+      }),
+      watchNumber(account.uid, "flowers", (flowers) => {
+        update({ flowers });
+        mirror();
+      }),
       // 別の端末で変えたスタート制限を取り込む。自分の保存が戻ってきただけなら何もしない。
       watchRestrictions(account.uid, async (cloud) => {
         const local = await getRestrictions();

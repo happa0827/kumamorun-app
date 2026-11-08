@@ -49,6 +49,12 @@ export const commitEvolution = (flower: FlowerName | null) =>
 export const importCloud = (stats: unknown, history: unknown) =>
   invoke<View>("import_cloud", { stats: stats ?? null, history: history ?? null });
 
+/** クラウドから読めた進化段階と花の数を、端末に控える（クラウドを移すときの引き継ぎ用）。 */
+export const mirrorProgress = (stage: number, flowers: number) =>
+  invoke<void>("mirror_progress", { stage, flowers });
+/** 保存内容をダウンロードフォルダーに書き出し、ファイルの場所を返す。 */
+export const exportBackup = () => invoke<string>("export_backup");
+
 export const openMini = () => invoke<void>("open_mini");
 export const closeMini = () => invoke<void>("close_mini");
 export const setFocusMode = (on: boolean) => invoke<void>("set_focus_mode", { on });

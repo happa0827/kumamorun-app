@@ -16,7 +16,7 @@ use crate::domain::growth::{Evolution, Flower, evolve};
 use crate::domain::restrictions::RestrictionsForm;
 use crate::domain::timer::TimerKind;
 use crate::settings::{Settings, Speakers, Use};
-use crate::storage::{Saved, Store, StoreError};
+use crate::storage::{Progress, Saved, Store, StoreError, backup_text};
 use crate::{player, shortcut, speech};
 
 /// 状態を書き出す間隔（tick の回数）。コマンドや通知が起きたときは、その場で書く。
@@ -45,6 +45,7 @@ impl AppState {
         let fresh = || Saved {
             engine: Engine::new(now),
             settings: Settings::default(),
+            progress: None,
         };
         let (saved, persist) = match store.load() {
             Ok(Some(saved)) => (saved, true),
@@ -403,6 +404,38 @@ pub fn import_cloud(
         (Vec::new(), ())
     })
     .0
+}
+
+/// クラウドから読めた進化段階と花の数を、控えとして保存する。変わったときだけ書く。
+/// クラウドを移すとき（`docs/plan/void-migration.md`）に、新しい保存先へ運ぶため。
+#[tauri::command]
+pub fn mirror_progress(state: State<AppState>, stage: u32, flowers: u32) {
+    let mut saved = state.saved.lock().expect("saved");
+    let next = Progress { stage, flowers };
+    if saved.progress == Some(next) {
+        return;
+    }
+    saved.progress = Some(next);
+    state.save(&saved);
+}
+
+/// 保存内容を、ダウンロードフォルダーにファイルとして書き出す。移行前の保険。
+/// 書いたファイルの場所を返す。
+#[tauri::command]
+pub fn export_backup(app: AppHandle, state: State<AppState>) -> Result<String, String> {
+    let text = {
+        let saved = state.saved.lock().expect("saved");
+        backup_text(&saved).map_err(|e| e.to_string())?
+    };
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().app_data_dir())
+        .map_err(|e| format!("書き出し先を決められません: {e}"))?;
+    let name = format!("kumamorun-backup-{}.json", Local::now().format("%Y-%m-%d"));
+    let path = dir.join(name);
+    std::fs::write(&path, text).map_err(|e| format!("書き出せません: {e}"))?;
+    Ok(path.display().to_string())
 }
 
 /// 毎秒、ドメインを進める。WebView が隠れていても止まらない。

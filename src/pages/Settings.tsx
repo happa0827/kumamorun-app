@@ -11,6 +11,7 @@ import { Slider } from "@/components/arc/slider/slider";
 import styles from "./Settings.module.css";
 import {
   checkUpdate,
+  exportBackup,
   getSettings,
   installUpdate,
   listOutputs,
@@ -114,6 +115,50 @@ function AboutSection() {
       {update.kind === "error" && (
         <Alert tone="danger" title="確認できませんでした">
           {update.message}
+        </Alert>
+      )}
+    </section>
+  );
+}
+
+type ExportState =
+  | { kind: "idle" }
+  | { kind: "working" }
+  | { kind: "done"; path: string }
+  | { kind: "error"; message: string };
+
+/** 保存内容をファイルに書き出す。クラウドを移すときの保険。保存の対象ではない。 */
+function BackupSection() {
+  const [state, setState] = useState<ExportState>({ kind: "idle" });
+
+  const run = async () => {
+    setState({ kind: "working" });
+    try {
+      setState({ kind: "done", path: await exportBackup() });
+    } catch (e) {
+      setState({ kind: "error", message: String(e) });
+    }
+  };
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>データの書き出し</h2>
+      <p className={styles.hint}>
+        記録、設定、進化段階、花の数をファイルに書き出します。保存先はダウンロードフォルダーです。
+      </p>
+      <div className={styles.row}>
+        <Button variant="secondary" loading={state.kind === "working"} onClick={run}>
+          書き出す
+        </Button>
+      </div>
+      {state.kind === "done" && (
+        <Alert tone="success" title="書き出しました">
+          {state.path}
+        </Alert>
+      )}
+      {state.kind === "error" && (
+        <Alert tone="danger" title="書き出せませんでした">
+          {state.message}
         </Alert>
       )}
     </section>
@@ -357,6 +402,8 @@ export function Settings({ onBack }: Props) {
           </Alert>
         )}
       </section>
+
+      <BackupSection />
 
       <AboutSection />
 

@@ -14,12 +14,31 @@ use crate::settings::Settings;
 /// ファイルの形式の版。互換のない変更をしたら上げる。
 const VERSION: u32 = 1;
 
+/// クラウドが持つ進化段階と花の数の控え。クラウドを移すときに、ここから取り込む。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Progress {
+    pub stage: u32,
+    pub flowers: u32,
+}
+
 /// 保存する内容。ドメインの状態と、端末の設定。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Saved {
     pub engine: Engine,
     #[serde(default)]
     pub settings: Settings,
+    /// クラウドから最後に読めた進化段階と花の数。まだ読めていなければ `None`。
+    #[serde(default)]
+    pub progress: Option<Progress>,
+}
+
+/// 書き出し用の本文。保存ファイルと同じ形（版つきの一つの JSON）。
+pub fn backup_text(saved: &Saved) -> Result<String, StoreError> {
+    serde_json::to_string_pretty(&FileOut {
+        version: VERSION,
+        saved,
+    })
+    .map_err(|e| StoreError::Io(io::Error::other(e)))
 }
 
 #[derive(Debug)]
@@ -121,11 +140,7 @@ impl Store {
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir)?;
         }
-        let json = serde_json::to_string_pretty(&FileOut {
-            version: VERSION,
-            saved,
-        })
-        .map_err(|e| StoreError::Io(io::Error::other(e)))?;
+        let json = backup_text(saved)?;
         let tmp = self.sibling(".tmp");
         fs::write(&tmp, json)?;
         fs::rename(&tmp, &self.path)?;
