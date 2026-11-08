@@ -5,6 +5,10 @@
   "windows": ["main", "mini", "toast"],
   "permissions": [
     "core:default",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/happa0827/kumamorun-app" }]
+    }
   ]
 }

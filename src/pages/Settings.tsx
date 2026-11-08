@@ -1,4 +1,6 @@
-import { ArrowLeft } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/arc/alert/alert";
 import { Button } from "@/components/arc/button/button";
@@ -7,7 +9,16 @@ import { Input } from "@/components/arc/input/input";
 import { MorphSelect } from "@/components/arc/morph-select/morph-select";
 import { Slider } from "@/components/arc/slider/slider";
 import styles from "./Settings.module.css";
-import { getSettings, listOutputs, saveSettings, speakNow, testSound } from "../api";
+import {
+  checkUpdate,
+  getSettings,
+  installUpdate,
+  listOutputs,
+  saveSettings,
+  speakNow,
+  testSound,
+  type UpdateInfo,
+} from "../api";
 import { acceleratorFromKey, shortcutLabel } from "../shortcut";
 import { parseSeconds, secondsText } from "../forms";
 import type { SoundPurpose, Speakers } from "../types";
@@ -17,6 +28,94 @@ interface Props {
 }
 
 const NO_SPEAKERS: Speakers = { play: null, rest: null, notify: null, shared: "" };
+
+/** capabilities/default.json の opener:allow-open-url と同じ URL にする。 */
+const REPO_URL = "https://github.com/happa0827/kumamorun-app";
+
+type UpdateState =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "latest" }
+  | { kind: "found"; info: UpdateInfo }
+  | { kind: "installing"; info: UpdateInfo }
+  | { kind: "error"; message: string };
+
+/** バージョン、更新の手動確認、GitHub のページへの導線。保存の対象ではない。 */
+function AboutSection() {
+  const [version, setVersion] = useState<string | null>(null);
+  const [update, setUpdate] = useState<UpdateState>({ kind: "idle" });
+
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
+      .catch(() => setVersion(null));
+  }, []);
+
+  const check = async () => {
+    setUpdate({ kind: "checking" });
+    try {
+      const info = await checkUpdate();
+      setUpdate(info ? { kind: "found", info } : { kind: "latest" });
+    } catch (e) {
+      setUpdate({ kind: "error", message: String(e) });
+    }
+  };
+
+  const install = async (info: UpdateInfo) => {
+    setUpdate({ kind: "installing", info });
+    try {
+      await installUpdate();
+    } catch (e) {
+      setUpdate({ kind: "error", message: String(e) });
+    }
+  };
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>バージョン情報</h2>
+      <p className={styles.hint}>現在のバージョン: {version ? `v${version}` : "取得できません"}</p>
+
+      <div className={styles.row}>
+        <Button
+          variant="secondary"
+          loading={update.kind === "checking"}
+          disabled={update.kind === "installing"}
+          onClick={check}
+        >
+          更新を確認
+        </Button>
+        <Button variant="secondary" onClick={() => openUrl(REPO_URL)}>
+          <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
+          GitHub を開く
+        </Button>
+      </div>
+
+      {update.kind === "latest" && (
+        <Alert tone="success" title="最新の版です">
+          {import.meta.env.DEV ? "開発ビルドでは、新しい版の確認はしません。" : "更新はありません。"}
+        </Alert>
+      )}
+      {(update.kind === "found" || update.kind === "installing") && (
+        <Alert tone="info" title={`新しい版 v${update.info.version} があります`}>
+          入れると再起動します。タイマーは止まります。
+        </Alert>
+      )}
+      {(update.kind === "found" || update.kind === "installing") && (
+        <Button
+          loading={update.kind === "installing"}
+          onClick={() => install(update.info)}
+        >
+          {`v${update.info.version} に更新`}
+        </Button>
+      )}
+      {update.kind === "error" && (
+        <Alert tone="danger" title="確認できませんでした">
+          {update.message}
+        </Alert>
+      )}
+    </section>
+  );
+}
 
 const SAME = "same";
 const DEFAULT = "default";
@@ -254,6 +353,8 @@ export function Settings({ onBack }: Props) {
           </Alert>
         )}
       </section>
+
+      <AboutSection />
 
       <Button size="lg" loading={saving} disabled={!loaded} onClick={save}>
         保存

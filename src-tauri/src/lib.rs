@@ -26,6 +26,8 @@ pub fn run() {
             windows::show_main(app);
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // GitHub のページを、既定のブラウザで開く。
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         // ログイン時は隠れた状態で起動する（トレイのメニューから切り替える）。
         .plugin(tauri_plugin_autostart::init(
