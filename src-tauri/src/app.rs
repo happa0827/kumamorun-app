@@ -419,7 +419,7 @@ fn tick_loop(app: AppHandle) {
         let effects = saved.engine.tick(now);
         let view = saved.engine.view(now, &to_epoch_ms);
         ticks = ticks.wrapping_add(1);
-        if !effects.is_empty() || ticks % SAVE_EVERY_TICKS == 0 {
+        if !effects.is_empty() || ticks.is_multiple_of(SAVE_EVERY_TICKS) {
             state.save(&saved);
         }
         drop(saved);

@@ -111,11 +111,12 @@ impl StopConfirm {
     pub fn expire(&mut self, now: NaiveDateTime) -> u32 {
         let mut failed = 0;
         for kind in ORDER {
-            if let Some(entry) = self.entry_mut(kind).as_mut() {
-                if !entry.settled() && entry.left(now) <= Duration::zero() {
-                    entry.failed = true;
-                    failed += 1;
-                }
+            if let Some(entry) = self.entry_mut(kind).as_mut()
+                && !entry.settled()
+                && entry.left(now) <= Duration::zero()
+            {
+                entry.failed = true;
+                failed += 1;
             }
         }
         failed

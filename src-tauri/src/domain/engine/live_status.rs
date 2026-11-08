@@ -169,17 +169,17 @@ impl Engine {
                 status.duration = Some(timer.duration().num_seconds());
                 status.running = timer.is_running();
                 status.keeping = timer.is_running();
-                if timer.is_running() && timer.kind() == TimerKind::Play {
-                    if let Some((left, kind)) = self.restrictions.next_boundary(now) {
-                        if left < remaining {
-                            remaining = left;
-                            let until = match kind {
-                                BoundaryKind::LunchStart => "昼休憩",
-                                BoundaryKind::EndTime => "終了",
-                            };
-                            status.label = format!("遊び（{until}まで）");
-                        }
-                    }
+                if timer.is_running()
+                    && timer.kind() == TimerKind::Play
+                    && let Some((left, kind)) = self.restrictions.next_boundary(now)
+                    && left < remaining
+                {
+                    remaining = left;
+                    let until = match kind {
+                        BoundaryKind::LunchStart => "昼休憩",
+                        BoundaryKind::EndTime => "終了",
+                    };
+                    status.label = format!("遊び（{until}まで）");
                 }
                 status.remaining_sec = Some(remaining.num_seconds());
             }

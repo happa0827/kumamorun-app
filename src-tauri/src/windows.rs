@@ -172,20 +172,18 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
         }
         // 最小化を禁止していても Win+↓ などで最小化できることがあるので、すぐ戻す。
         (MAIN, WindowEvent::Resized(_)) => {
-            if window.is_minimized().unwrap_or(false) {
-                if let Some(action) = state.pin.lock().expect("pin").on_minimized() {
-                    apply_pin(app, &[action]);
-                }
+            if window.is_minimized().unwrap_or(false)
+                && let Some(action) = state.pin.lock().expect("pin").on_minimized()
+            {
+                apply_pin(app, &[action]);
             }
         }
         (MINI, WindowEvent::Moved(position)) => {
             *state.mini_pos.lock().expect("mini_pos") = Some(*position);
         }
         // ミニを閉じたら（✕でも Alt+F4 でも）必ずメインへ戻す。
-        (MINI, WindowEvent::Destroyed) => {
-            if !state.pin.lock().expect("pin").is_quitting() {
-                show_main(app);
-            }
+        (MINI, WindowEvent::Destroyed) if !state.pin.lock().expect("pin").is_quitting() => {
+            show_main(app);
         }
         _ => {}
     }

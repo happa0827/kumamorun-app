@@ -96,7 +96,9 @@ pub fn decode_wav(bytes: &[u8]) -> Result<Pcm, String> {
             // 書き込み中のファイルのように、サイズが実際より大きい場合は読める分だけ読む。
             let end = (body + size).min(bytes.len());
             let samples = bytes[body..end]
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| f32::from(i16::from_le_bytes([pair[0], pair[1]])) / 32768.0)
                 .collect();
             return Ok(Pcm {

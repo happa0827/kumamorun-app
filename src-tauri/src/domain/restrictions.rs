@@ -133,19 +133,20 @@ impl Restrictions {
         let weekend = is_weekend(now.date());
         let r = self.for_date(now.date());
         let time = now.time();
-        if let (Some(start), Some(end)) = (r.lunch_start, r.lunch_end) {
-            if start <= time && time < end {
-                return Some(StartBlock::Lunch {
-                    start,
-                    end,
-                    weekend,
-                });
-            }
+        if let (Some(start), Some(end)) = (r.lunch_start, r.lunch_end)
+            && start <= time
+            && time < end
+        {
+            return Some(StartBlock::Lunch {
+                start,
+                end,
+                weekend,
+            });
         }
-        if let Some(end) = r.end_time {
-            if time >= end {
-                return Some(StartBlock::AfterEnd { end, weekend });
-            }
+        if let Some(end) = r.end_time
+            && time >= end
+        {
+            return Some(StartBlock::AfterEnd { end, weekend });
         }
         None
     }
