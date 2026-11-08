@@ -25,11 +25,13 @@ bun tauri signer generate -w C:/Users/<ユーザー名>/.tauri/kumamorun-updater
 
 証明書は auto-clicker と同じもの（`certificateThumbprint` も同じ）。
 
-## 開発用アカウントのパスワード
-- 開発ビルド（`tauri dev`）だけが、`.env` の `VITE_DEV_EMAIL` と `VITE_DEV_PASSWORD` を読む。
-- `.env` はコミットしない（`.gitignore` 済み）。
-- 本番ビルドには含まれない。`import.meta.env.DEV` の分岐ごと取り除かれる。確かめ方:
-  `bun run build` のあと、`dist` の中に、パスワード、メールアドレス、`VITE_DEV_` のどれも無いこと。
+## 接続先（サイトの URL）
+- リリースビルドの接続先は、GitHub のリポジトリ変数 `KUMAMORUN_API_BASE`（`https://…`）で決める。
+  設定は Settings → Secrets and variables → Actions → Variables。
+- 未設定だと、リリースのワークフローが最初に止まる（接続先が空のアプリは、ログインできないため）。
+- 開発ビルド（`tauri dev`）は、ローカルの `void dev`（`http://localhost:5173`）につながる。
+  本番のデータには触れない。
+- 端末のトークンは、接続先ごとに別の項目として、OS の資格情報マネージャーに保管される。
 
 ## リリース
 1. `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` の version をそろえる。
@@ -42,7 +44,7 @@ bun tauri signer generate -w C:/Users/<ユーザー名>/.tauri/kumamorun-updater
 1. Electron 版を終了する。トレイにも残らないこと。
 2. Electron 版をアンインストールする。
 3. Tauri 版のインストーラーを実行する。
-4. 本番アカウントでログインする（アカウント画面）。
+4. アカウント画面の「ブラウザーでログイン」から、サイトでログインする（初めてなら登録）。「アプリを開く」でアプリに戻る。
 5. 起動時に、Electron 版が最後に記録した日が成功だった場合は、進化が1つ反映される。
 6. スタート制限、進化、花、直近の記録が Electron 版と同じであること。
 7. トレイの「PC起動時に自動で起動」を、必要なら有効にする。

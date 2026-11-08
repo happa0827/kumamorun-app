@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert } from "@/components/arc/alert/alert";
 import { Button } from "@/components/arc/button/button";
 import { Input } from "@/components/arc/input/input";
-import { getRestrictions } from "../api";
-import { saveRestrictionsEverywhere } from "../cloud/sync";
+import { getRestrictions, saveRestrictions } from "../api";
 import type { DayForm, RestrictionsForm } from "../types";
 import styles from "./Restrictions.module.css";
 
@@ -73,7 +72,7 @@ export function Restrictions({ onBack }: Props) {
     setSaving(true);
     setError(null);
     try {
-      await saveRestrictionsEverywhere(form);
+      await saveRestrictions(form);
     } catch (e) {
       setError(String(e));
       setSaving(false);

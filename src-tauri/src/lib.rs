@@ -1,5 +1,6 @@
 pub mod app;
 pub mod audio_out;
+pub mod cloud;
 pub mod cloud_input;
 pub mod desktop;
 pub mod domain;
@@ -25,6 +26,8 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             windows::show_main(app);
         }))
+        // `kumamorun://auth?code=…` を受ける（サイトの「アプリを開く」）。
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // GitHub のページを、既定のブラウザで開く。
         .plugin(tauri_plugin_opener::init())
@@ -49,14 +52,10 @@ pub fn run() {
             app::speak_now,
             app::get_restrictions,
             app::save_restrictions,
-            app::apply_cloud_restrictions,
-            app::take_evolution,
-            app::restore_evolution,
-            app::plan_evolution,
-            app::commit_evolution,
-            app::import_cloud,
-            app::mirror_progress,
             app::export_backup,
+            cloud::worker::get_cloud,
+            cloud::worker::open_login,
+            cloud::worker::log_out_cloud,
             updater::check_update,
             updater::install_update,
             windows::open_mini,
@@ -65,6 +64,12 @@ pub fn run() {
             windows::toast_ready,
             windows::toast_layout,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // 終了するとき、サイトを「停止」にする。強制終了なら、ハートビートが途絶えて停止になる。
+            if let tauri::RunEvent::Exit = event {
+                cloud::offline_on_exit(app);
+            }
+        });
 }

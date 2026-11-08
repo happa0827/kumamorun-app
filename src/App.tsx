@@ -1,7 +1,6 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useView } from "./api";
-import { startCloudSync } from "./cloud/sync";
 import { Account } from "./pages/Account";
 import { Home } from "./pages/Home";
 import { Mini } from "./pages/Mini";
@@ -23,8 +22,6 @@ function Main() {
   const view = useView();
   const [page, setPage] = useState<Page>("home");
   const home = () => setPage("home");
-  // 同期は画面の切り替えに関係なく、メインウィンドウが生きている間ずっと動かす。
-  useEffect(() => startCloudSync(), []);
 
   if (!view) return null;
   switch (page) {

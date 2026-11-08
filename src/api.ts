@@ -3,7 +3,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
-import type { FlowerName, Plan } from "./cloud/evolution";
 import type { RestrictionsForm, SettingsView, SoundPurpose, View } from "./types";
 
 export const getView = () => invoke<View>("get_view");
@@ -33,25 +32,10 @@ export const getRestrictions = () => invoke<RestrictionsForm>("get_restrictions"
 export const saveRestrictions = (form: RestrictionsForm) =>
   invoke<void>("save_restrictions", { form });
 
-/** 別の端末で変えた分の取り込み。保存と違い、閉じられるかどうかは変えない。 */
-export const applyCloudRestrictions = (form: RestrictionsForm) =>
-  invoke<void>("apply_cloud_restrictions", { form });
-
 export const pauseTimer = () => invoke<View>("pause_timer");
 export const resumeTimer = () => invoke<View>("resume_timer");
 export const pressStopped = () => invoke<View>("press_stopped");
 
-export const takeEvolution = () => invoke<boolean>("take_evolution");
-export const restoreEvolution = () => invoke<void>("restore_evolution");
-export const planEvolution = (current: number) => invoke<Plan>("plan_evolution", { current });
-export const commitEvolution = (flower: FlowerName | null) =>
-  invoke<void>("commit_evolution", { flower });
-export const importCloud = (stats: unknown, history: unknown) =>
-  invoke<View>("import_cloud", { stats: stats ?? null, history: history ?? null });
-
-/** クラウドから読めた進化段階と花の数を、端末に控える（クラウドを移すときの引き継ぎ用）。 */
-export const mirrorProgress = (stage: number, flowers: number) =>
-  invoke<void>("mirror_progress", { stage, flowers });
 /** 保存内容をダウンロードフォルダーに書き出し、ファイルの場所を返す。 */
 export const exportBackup = () => invoke<string>("export_backup");
 

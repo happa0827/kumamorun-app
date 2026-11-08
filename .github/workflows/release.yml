@@ -52,9 +52,22 @@ jobs:
           $pw = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
           Import-PfxCertificate -FilePath "$env:RUNNER_TEMP\cert.pfx" -CertStoreLocation Cert:\CurrentUser\My -Password $pw
 
+      # 接続先（サイトの URL）はビルド時に決まり、実行時には変えられない。
+      # 空のまま出すと、アプリはログインできない。
+      - name: Check API base
+        shell: bash
+        env:
+          KUMAMORUN_API_BASE: ${{ vars.KUMAMORUN_API_BASE }}
+        run: |
+          case "$KUMAMORUN_API_BASE" in
+            https://*) ;;
+            *) echo "リポジトリの変数 KUMAMORUN_API_BASE に、サイトの https の URL を設定してください" >&2; exit 1 ;;
+          esac
+
       - name: Build and release Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
+          KUMAMORUN_API_BASE: ${{ vars.KUMAMORUN_API_BASE }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # アップデーター署名。bundle.createUpdaterArtifacts が true のとき秘密鍵が必須。
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

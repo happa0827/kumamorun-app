@@ -8,11 +8,14 @@ use chrono::{Local, NaiveDateTime, TimeZone, Timelike};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::cloud::Cloud;
+use crate::cloud::evolution::{self, EvolutionHost, Plan};
+use crate::cloud::wire::SyncResponse;
 use crate::cloud_input;
 use crate::domain::effects::{Effect, Notice, Sound};
 use crate::domain::engine::view::View;
 use crate::domain::engine::{Engine, StartError};
-use crate::domain::growth::{Evolution, Flower, evolve};
+use crate::domain::growth::Flower;
 use crate::domain::restrictions::RestrictionsForm;
 use crate::domain::timer::TimerKind;
 use crate::settings::{Settings, Speakers, Use};
@@ -306,15 +309,8 @@ pub fn save_restrictions(app: AppHandle, state: State<AppState>, form: Restricti
         // 書き換えただけで境界を通過したとはみなさず、閉じられるかどうかだけ切り替える。
         (saved.engine.edit_restrictions((&form).into(), now), ())
     });
-}
-
-/// 別の端末で変えたスタート制限を取り込む。利用者の操作ではないので、閉じられるかどうかは変えない。
-#[tauri::command]
-pub fn apply_cloud_restrictions(app: AppHandle, state: State<AppState>, form: RestrictionsForm) {
-    operate(&app, &state, |saved, now| {
-        saved.engine.set_restrictions((&form).into(), now);
-        (Vec::new(), ())
-    });
+    // ログイン中なら、サーバーにも保存する（つながっていなければ、つながってから）。
+    app.state::<Cloud>().mark_settings_dirty();
 }
 
 /// 開花の抽選に使う 0以上100未満の値。
@@ -326,97 +322,97 @@ fn random_roll() -> f64 {
     (bits % 10_000) as f64 / 100.0
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EvolutionPlan {
-    /// 成長したときの新しい段階。開花のときは `None`（0 に戻る）。
-    stage: Option<u32>,
-    flower: Option<Flower>,
-    /// 開花で増える花の数。
-    gain: u32,
+/// 同期が使う、いまの状態の写し。
+pub(crate) struct Snapshot {
+    pub view: View,
+    pub restrictions: RestrictionsForm,
+    pub progress: Option<Progress>,
 }
 
-/// 保留中の進化を1つ取り出す。取り出せたら true。
-#[tauri::command]
-pub fn take_evolution(app: AppHandle, state: State<AppState>) -> bool {
-    operate(&app, &state, |saved, _| {
-        (Vec::new(), saved.engine.take_pending_evolution())
-    })
-    .1
-}
+impl AppState {
+    pub(crate) fn snapshot(&self) -> Snapshot {
+        let saved = self.saved.lock().expect("saved");
+        Snapshot {
+            view: saved.engine.view(local_now(), &to_epoch_ms),
+            restrictions: saved.engine.restrictions().into(),
+            progress: saved.progress,
+        }
+    }
 
-/// 反映できなかった進化を保留に戻す。
-#[tauri::command]
-pub fn restore_evolution(app: AppHandle, state: State<AppState>) {
-    operate(&app, &state, |saved, _| {
-        saved.engine.restore_pending_evolution();
-        (Vec::new(), ())
-    });
-}
-
-/// 現在の進化段階から、次に起きること（成長か開花）を決める。状態は変えない。
-#[tauri::command]
-pub fn plan_evolution(current: u32) -> EvolutionPlan {
-    match evolve(current, random_roll()) {
-        Evolution::Grew { stage } => EvolutionPlan {
-            stage: Some(stage),
-            flower: None,
-            gain: 0,
-        },
-        Evolution::Bloomed { flower } => EvolutionPlan {
-            stage: None,
-            flower: Some(flower),
-            gain: flower.gain(),
-        },
+    /// サーバーが持つ進化段階と花の数の控え。変わったときだけ書く。
+    pub(crate) fn set_progress(&self, progress: Progress) {
+        let mut saved = self.saved.lock().expect("saved");
+        if saved.progress == Some(progress) {
+            return;
+        }
+        saved.progress = Some(progress);
+        self.save(&saved);
     }
 }
 
-/// クラウドへ反映できた進化を、利用者に知らせる。開花なら今日の花を覚える。
-#[tauri::command]
-pub fn commit_evolution(app: AppHandle, state: State<AppState>, flower: Option<Flower>) {
-    operate(&app, &state, |saved, now| {
-        let notice = match flower {
-            Some(flower) => {
-                saved.engine.set_bloom(flower, now);
-                Notice::Bloomed { flower }
-            }
-            None => Notice::Evolved,
-        };
-        (
-            vec![Effect::Notice(notice), Effect::Sound(Sound::Evolved)],
-            (),
-        )
-    });
-}
-
-/// クラウドの記録のうち、この端末に無いものを取り込む。
-#[tauri::command]
-pub fn import_cloud(
-    app: AppHandle,
-    state: State<AppState>,
-    stats: Option<serde_json::Value>,
-    history: Option<serde_json::Value>,
-) -> View {
-    let stats = cloud_input::parse_stats(stats.as_ref());
-    let history = cloud_input::parse_history(history.as_ref());
-    operate(&app, &state, |saved, now| {
+/// サーバーの内容のうち、この端末に無いものを取り込む。
+/// 記録は端末を正とし、足りない日だけ補う。スタート制限はサーバーの値を採る
+/// （別の端末で変えた分。利用者の操作ではないので、閉じられるかどうかは変えない）。
+pub(crate) fn merge_remote(app: &AppHandle, state: &AppState, remote: &SyncResponse) {
+    let stats = cloud_input::parse_stats(remote.daily.as_ref());
+    let history = cloud_input::parse_history(Some(&remote.history));
+    let form = remote
+        .restrictions
+        .as_ref()
+        .and_then(|value| serde_json::from_value::<RestrictionsForm>(value.clone()).ok());
+    operate(app, state, |saved, now| {
         saved.engine.import_cloud(stats, &history, now);
+        if let Some(form) = &form
+            && RestrictionsForm::from(saved.engine.restrictions()) != *form
+        {
+            saved.engine.set_restrictions(form.into(), now);
+        }
         (Vec::new(), ())
-    })
-    .0
+    });
 }
 
-/// クラウドから読めた進化段階と花の数を、控えとして保存する。変わったときだけ書く。
-/// クラウドを移すとき（`docs/plan/void-migration.md`）に、新しい保存先へ運ぶため。
-#[tauri::command]
-pub fn mirror_progress(state: State<AppState>, stage: u32, flowers: u32) {
-    let mut saved = state.saved.lock().expect("saved");
-    let next = Progress { stage, flowers };
-    if saved.progress == Some(next) {
-        return;
+/// 保留中の進化の出し入れと、反映できたときの通知。
+pub(crate) struct Evolutions<'a> {
+    pub app: &'a AppHandle,
+    pub state: &'a AppState,
+}
+
+impl EvolutionHost for Evolutions<'_> {
+    fn take(&self) -> bool {
+        operate(self.app, self.state, |saved, _| {
+            (Vec::new(), saved.engine.take_pending_evolution())
+        })
+        .1
     }
-    saved.progress = Some(next);
-    state.save(&saved);
+
+    fn restore(&self) {
+        operate(self.app, self.state, |saved, _| {
+            saved.engine.restore_pending_evolution();
+            (Vec::new(), ())
+        });
+    }
+
+    fn plan(&self, current: u32) -> Plan {
+        evolution::plan(current, random_roll())
+    }
+
+    /// 開花なら今日の花を覚える。
+    fn commit(&self, flower: Option<Flower>, progress: Progress) {
+        operate(self.app, self.state, |saved, now| {
+            let notice = match flower {
+                Some(flower) => {
+                    saved.engine.set_bloom(flower, now);
+                    Notice::Bloomed { flower }
+                }
+                None => Notice::Evolved,
+            };
+            (
+                vec![Effect::Notice(notice), Effect::Sound(Sound::Evolved)],
+                (),
+            )
+        });
+        self.state.set_progress(progress);
+    }
 }
 
 /// 保存内容を、ダウンロードフォルダーにファイルとして書き出す。移行前の保険。
@@ -465,6 +461,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
     let state = AppState::open(Store::new(dir.join("state.json")), local_now());
     app.manage(state);
+    crate::cloud::setup(app);
     app.manage(crate::windows::WindowState::default());
     let accelerator = app.state::<AppState>().speak_shortcut();
     if let Err(e) = shortcut::apply(app.handle(), &accelerator) {

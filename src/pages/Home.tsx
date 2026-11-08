@@ -122,13 +122,13 @@ export function Home({ view, onNavigate }: Props) {
         <section className={styles.hero}>
           <img
             className={styles.avatar}
-            src={characterImage(cloud.evolution, view.bloom)}
+            src={characterImage(cloud.stage, view.bloom)}
             alt="くまもーるん"
           />
 
           <div className={styles.info}>
             <div className={styles.stats}>
-              <Stat label="進化" value={cloud.evolution} context="6段階中" />
+              <Stat label="進化" value={cloud.stage} context="6段階中" />
               <Stat
                 label={
                   <>

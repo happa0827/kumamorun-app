@@ -154,13 +154,20 @@ startBlocked, blockReason, daily, week
 
 ### 段階 2: アプリの Rust 同期とディープリンク（このリポジトリ）
 
-- `kumamorun://auth` のディープリンクを受ける（`tauri-plugin-deep-link`）
-- トークンを OS の資格情報ストアに保管する
-- Rust の HTTP クライアントで `/sync`、`/settings`、`/days`、`/evolve`、`/live-status` を呼ぶ
-- 書き込みのキューと、間隔を延ばす再試行
-- 初回ログインで、ローカルのデータ（記録、設定、`Saved.progress` の控え）を `/import` で取り込む。控えが無ければ、進化段階 0、花 0 から始める。旧版の `evolution = 6` は 5 に丸める
-- WebView の Firebase 関連（`src/cloud/cloud.ts`、`sync.ts`）を外し、`firebase` を依存から外す
-- 開発ビルドは `http://localhost` の API につなぐ
+実装は `src-tauri/src/cloud/`（`http.rs`、`wire.rs`、`evolution.rs`、`live.rs`、`link.rs`、`token.rs`、`worker.rs`）。
+
+- [x] `kumamorun://auth` のディープリンクを受ける（`tauri-plugin-deep-link`、`tauri.conf.json` に scheme）
+- [x] トークンを OS の資格情報ストアに保管する（接続先ごとに別の項目）
+- [x] Rust の HTTP クライアントで `/exchange`、`/sync`、`/settings`、`/days`、`/evolve`、`/live-status`、`/import`、`/logout` を呼ぶ
+- [x] 失敗の分類と、間隔を延ばす再試行（2秒から倍々、5分で頭打ち）。記録と設定は、端末の状態から毎回作り直すので、キューは「変更あり」の印と再試行で足りる
+- [x] 初回ログインで、まっさらなアカウントなら、ローカルのデータ（記録、設定、`Saved.progress` の控え）を `/import` で取り込む。控えが無ければ、進化段階 0、花 0 から。旧版の `evolution = 6` は 5 に丸める
+- [x] 進化の反映は、`409` の「今の値」で判定し直す（最大3回）。失敗した分は保留に戻す
+- [x] WebView の Firebase 関連を外し、`firebase` を依存から外す。画面は Rust が流す `cloud` イベントを見るだけ
+- [x] 開発ビルドは `http://localhost:5173` の API につなぐ。リリースビルドは、変数 `KUMAMORUN_API_BASE` を埋め込む
+- [x] アプリの終了時に、サイトを「停止」にする（`RunEvent::Exit`）
+- [x] 通しテスト（ローカルの `void dev` に対し、全 API を呼ぶ。`cargo test --lib 実サーバー -- --ignored`）
+- [ ] **実機の確認**: ブラウザーでログイン → 「アプリを開く」でアプリに戻る → 状況ページに反映、までを Windows の release ビルド（インストーラー経由）で確かめる
+- [ ] 変数 `KUMAMORUN_API_BASE` に本番の URL を設定する
 
 ### 段階 3: 最後の Firebase 版（このリポジトリ）
 
