@@ -1,4 +1,4 @@
-# main への push で、型検査・テスト・リリースビルドを走らせる。
+# main への push で、リント・整形の確認・型検査・テスト・リリースビルドを走らせる。
 #
 # 目的は2つ。
 # 1. 壊れた変更を、タグを打つ前に見つける。
@@ -30,6 +30,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -43,12 +45,18 @@ jobs:
         run: |
           bun run lint
           bun run fmt:check
+          cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       - name: Test
         run: |
           bunx tsc --noEmit
           bun test
           cargo test --lib --manifest-path src-tauri/Cargo.toml
+
+      # 警告で落とさない(-D warnings は付けない)。Rust のバージョンが上がって新しい警告が
+      # 出ても、コードを変えていないのに CI が落ちるのを避ける。警告はログで見る。
+      - name: Clippy
+        run: cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml
 
       # リリースと同じ release プロファイルでコンパイルして、キャッシュに入れる。
       # インストーラーは作らない(署名の鍵や証明書は使わない)。
