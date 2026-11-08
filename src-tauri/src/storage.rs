@@ -26,9 +26,13 @@ pub struct Saved {
 pub enum StoreError {
     Io(io::Error),
     /// 読めない、または形が合わない。元のファイルは `.corrupt` へ退避した。
-    Corrupt { reason: String },
+    Corrupt {
+        reason: String,
+    },
     /// このアプリより新しい版で書かれている。ファイルには触れていない。
-    UnsupportedVersion { found: u32 },
+    UnsupportedVersion {
+        found: u32,
+    },
 }
 
 impl fmt::Display for StoreError {

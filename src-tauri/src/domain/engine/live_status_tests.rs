@@ -269,7 +269,10 @@ fn 書き込むキーは固定() {
     expected.sort();
     assert_eq!(keys, expected);
     assert_eq!(value["remainingSec"], serde_json::Value::Null);
-    assert_eq!(value["daily"], json!({"date": "2026-11-09", "plays": 0, "failures": 0}));
+    assert_eq!(
+        value["daily"],
+        json!({"date": "2026-11-09", "plays": 0, "failures": 0})
+    );
     assert_eq!(
         value["week"][6],
         json!({"date": "2026-11-09", "plays": 0, "failures": 0, "success": false})

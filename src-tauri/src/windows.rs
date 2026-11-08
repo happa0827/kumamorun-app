@@ -6,18 +6,18 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder};
-use tauri_plugin_autostart::ManagerExt;
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder, Window, WindowEvent,
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, Window, WindowEvent,
 };
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::domain::effects::Effect;
 use crate::notices::toast_text;
 use crate::pin::{CloseDecision, Pin, PinAction};
 use crate::toast::{
-    card_at, nudge_bounds, place_toast_window, CardBox, CardRect, Pad, PlaceOptions, Rect, Size,
+    CardBox, CardRect, Pad, PlaceOptions, Rect, Size, card_at, nudge_bounds, place_toast_window,
 };
 
 const MAIN: &str = "main";
@@ -242,7 +242,11 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 // メニューは押した時点で表示が切り替わるので、その値を実際の登録に反映する。
                 let wanted = autostart.is_checked().unwrap_or(false);
                 let launcher = app.autolaunch();
-                let result = if wanted { launcher.enable() } else { launcher.disable() };
+                let result = if wanted {
+                    launcher.enable()
+                } else {
+                    launcher.disable()
+                };
                 if let Err(e) = result {
                     eprintln!("自動起動を切り替えられませんでした: {e}");
                     let _ = autostart.set_checked(!wanted);
@@ -317,7 +321,13 @@ fn open_mini_window(app: &AppHandle) -> tauri::Result<()> {
 #[tauri::command]
 pub async fn open_mini(app: AppHandle) {
     // 時間切れの固定中は、ミニへ切り替えない。
-    if !app.state::<WindowState>().pin.lock().expect("pin").mini_allowed() {
+    if !app
+        .state::<WindowState>()
+        .pin
+        .lock()
+        .expect("pin")
+        .mini_allowed()
+    {
         return;
     }
     if open_mini_window(&app).is_ok() {
@@ -524,36 +534,43 @@ fn start_cursor_watcher(app: &AppHandle) {
         toast.watcher_started = true;
     }
     let app = app.clone();
-    std::thread::spawn(move || loop {
-        let visible = app.state::<WindowState>().toast.lock().expect("toast").visible;
-        std::thread::sleep(if visible { CURSOR_POLL } else { IDLE_POLL });
-        if !visible {
-            continue;
+    std::thread::spawn(move || {
+        loop {
+            let visible = app
+                .state::<WindowState>()
+                .toast
+                .lock()
+                .expect("toast")
+                .visible;
+            std::thread::sleep(if visible { CURSOR_POLL } else { IDLE_POLL });
+            if !visible {
+                continue;
+            }
+            let Some(window) = app.get_webview_window(TOAST) else {
+                continue;
+            };
+            let (Ok(cursor), Ok(origin), Ok(scale)) = (
+                window.cursor_position(),
+                window.inner_position(),
+                window.scale_factor(),
+            ) else {
+                continue;
+            };
+            let state = app.state::<WindowState>();
+            let mut toast = state.toast.lock().expect("toast");
+            let hit = card_at(
+                (cursor.x, cursor.y),
+                (f64::from(origin.x), f64::from(origin.y)),
+                scale,
+                &toast.cards,
+            );
+            if hit == toast.hovered {
+                continue;
+            }
+            toast.hovered = hit;
+            drop(toast);
+            let _ = window.set_ignore_cursor_events(hit.is_none());
+            let _ = app.emit_to(TOAST, "toast-hover", hit);
         }
-        let Some(window) = app.get_webview_window(TOAST) else {
-            continue;
-        };
-        let (Ok(cursor), Ok(origin), Ok(scale)) = (
-            window.cursor_position(),
-            window.inner_position(),
-            window.scale_factor(),
-        ) else {
-            continue;
-        };
-        let state = app.state::<WindowState>();
-        let mut toast = state.toast.lock().expect("toast");
-        let hit = card_at(
-            (cursor.x, cursor.y),
-            (f64::from(origin.x), f64::from(origin.y)),
-            scale,
-            &toast.cards,
-        );
-        if hit == toast.hovered {
-            continue;
-        }
-        toast.hovered = hit;
-        drop(toast);
-        let _ = window.set_ignore_cursor_events(hit.is_none());
-        let _ = app.emit_to(TOAST, "toast-hover", hit);
     });
 }

@@ -27,9 +27,18 @@ fn 打ち切られたときは理由を読む() {
 
 #[test]
 fn 残り時間を分と秒で読む() {
-    assert_eq!(text_for("play", "遊び", Some(90), None), "遊び、残り1分30秒です");
-    assert_eq!(text_for("break", "休憩", Some(300), None), "休憩、残り5分です");
-    assert_eq!(text_for("play", "遊び", Some(45), None), "遊び、残り45秒です");
+    assert_eq!(
+        text_for("play", "遊び", Some(90), None),
+        "遊び、残り1分30秒です"
+    );
+    assert_eq!(
+        text_for("break", "休憩", Some(300), None),
+        "休憩、残り5分です"
+    );
+    assert_eq!(
+        text_for("play", "遊び", Some(45), None),
+        "遊び、残り45秒です"
+    );
     assert_eq!(text_for("play", "遊び", Some(0), None), "遊び、残り0秒です");
 }
 
@@ -53,7 +62,10 @@ fn 残り時間が不明なら0秒として読む() {
 
 #[test]
 fn 負の秒数は0秒として読む() {
-    assert_eq!(text_for("play", "遊び", Some(-5), None), "遊び、残り0秒です");
+    assert_eq!(
+        text_for("play", "遊び", Some(-5), None),
+        "遊び、残り0秒です"
+    );
 }
 
 /// 試験用の WAV を組み立てる。
@@ -140,11 +152,9 @@ fn 小さい音はそのまま増幅される() {
 
 #[test]
 fn 大きい音は振り切れず_1以内に収まり_潰される() {
-    let mut p = pcm(
-        (0..22_050)
-            .map(|i| (i as f32 * 440.0 * std::f32::consts::TAU / 22_050.0).sin() * 0.9)
-            .collect(),
-    );
+    let mut p = pcm((0..22_050)
+        .map(|i| (i as f32 * 440.0 * std::f32::consts::TAU / 22_050.0).sin() * 0.9)
+        .collect());
     amplify(&mut p, 4.0);
     let peak = p.samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
     assert!(peak <= 1.0);

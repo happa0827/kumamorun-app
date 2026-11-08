@@ -89,7 +89,9 @@ pub fn decode_wav(bytes: &[u8]) -> Result<Pcm, String> {
         } else if id == b"data" {
             let (tag, channels, rate, bits) = format.ok_or("data の前に fmt がありません")?;
             if tag != 1 || bits != 16 || channels == 0 {
-                return Err(format!("未対応の形式です（形式 {tag}、{bits}bit、{channels}ch）"));
+                return Err(format!(
+                    "未対応の形式です（形式 {tag}、{bits}bit、{channels}ch）"
+                ));
             }
             // 書き込み中のファイルのように、サイズが実際より大きい場合は読める分だけ読む。
             let end = (body + size).min(bytes.len());

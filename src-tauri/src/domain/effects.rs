@@ -24,7 +24,10 @@ pub enum Notice {
     /// 20-20-20ルール。
     EyeBreak,
     /// 制限時刻に達した。`stopped_play` は、動いていた遊びを打ち切ったか。
-    Boundary { boundary: Boundary, stopped_play: bool },
+    Boundary {
+        boundary: Boundary,
+        stopped_play: bool,
+    },
     /// キャラが進化した。
     Evolved,
     /// 開花した。
@@ -59,7 +62,9 @@ pub enum Effect {
     Sound(Sound),
     Surface(Surface),
     /// 最前面を解除する。`force` なら閉じられる状態にもする。
-    ReleaseAlwaysOnTop { force: bool },
+    ReleaseAlwaysOnTop {
+        force: bool,
+    },
     /// 終了時刻の「やめた」を受けて、PC をスリープさせる。
     SleepNow,
 }

@@ -57,12 +57,17 @@ mod tests {
 
     #[test]
     fn 当日の統計を読む() {
-        let stats = parse_stats(Some(&json!({"date": "2026-11-09", "plays": 2, "failures": 1})));
+        let stats = parse_stats(Some(
+            &json!({"date": "2026-11-09", "plays": 2, "failures": 1}),
+        ));
         assert_eq!(
             stats,
             Some(CloudDay {
                 date: day(9),
-                record: DayRecord { plays: 2, failures: 1 }
+                record: DayRecord {
+                    plays: 2,
+                    failures: 1
+                }
             })
         );
     }
@@ -70,7 +75,13 @@ mod tests {
     #[test]
     fn 欠けた回数は0とみなす() {
         let stats = parse_stats(Some(&json!({"date": "2026-11-09"}))).unwrap();
-        assert_eq!(stats.record, DayRecord { plays: 0, failures: 0 });
+        assert_eq!(
+            stats.record,
+            DayRecord {
+                plays: 0,
+                failures: 0
+            }
+        );
     }
 
     #[test]
@@ -79,14 +90,25 @@ mod tests {
         assert_eq!(parse_stats(Some(&json!(null))), None);
         assert_eq!(parse_stats(Some(&json!("x"))), None);
         assert_eq!(parse_stats(Some(&json!({"plays": 1}))), None);
-        assert_eq!(parse_stats(Some(&json!({"date": "昨日", "plays": 1}))), None);
+        assert_eq!(
+            parse_stats(Some(&json!({"date": "昨日", "plays": 1}))),
+            None
+        );
         assert_eq!(parse_stats(Some(&json!({"date": 20261109}))), None);
     }
 
     #[test]
     fn 負の値や小数は0として扱う() {
-        let stats = parse_stats(Some(&json!({"date": "2026-11-09", "plays": -3, "failures": 1.5})));
-        assert_eq!(stats.unwrap().record, DayRecord { plays: 0, failures: 0 });
+        let stats = parse_stats(Some(
+            &json!({"date": "2026-11-09", "plays": -3, "failures": 1.5}),
+        ));
+        assert_eq!(
+            stats.unwrap().record,
+            DayRecord {
+                plays: 0,
+                failures: 0
+            }
+        );
     }
 
     #[test]
@@ -98,8 +120,20 @@ mod tests {
             "2026-11-06": 5,
         })));
         assert_eq!(history.len(), 2);
-        assert_eq!(history[&day(8)], DayRecord { plays: 1, failures: 0 });
-        assert_eq!(history[&day(7)], DayRecord { plays: 3, failures: 0 });
+        assert_eq!(
+            history[&day(8)],
+            DayRecord {
+                plays: 1,
+                failures: 0
+            }
+        );
+        assert_eq!(
+            history[&day(7)],
+            DayRecord {
+                plays: 3,
+                failures: 0
+            }
+        );
     }
 
     #[test]

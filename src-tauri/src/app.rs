@@ -10,14 +10,14 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::cloud_input;
 use crate::domain::effects::{Effect, Notice, Sound};
-use crate::domain::growth::{evolve, Evolution, Flower};
 use crate::domain::engine::view::View;
 use crate::domain::engine::{Engine, StartError};
+use crate::domain::growth::{Evolution, Flower, evolve};
 use crate::domain::restrictions::RestrictionsForm;
 use crate::domain::timer::TimerKind;
 use crate::settings::{Settings, Speakers, Use};
-use crate::{player, shortcut, speech};
 use crate::storage::{Saved, Store, StoreError};
+use crate::{player, shortcut, speech};
 
 /// 状態を書き出す間隔（tick の回数）。コマンドや通知が起きたときは、その場で書く。
 const SAVE_EVERY_TICKS: u32 = 10;
@@ -288,7 +288,9 @@ pub async fn test_sound(purpose: String, device: String) -> Result<(), String> {
 /// 制限時刻のアラームが鳴り終わった。前面の固定を外してよいか、ドメインが決める。
 pub(crate) fn finish_alarm(app: &AppHandle) {
     let state = app.state::<AppState>();
-    operate(app, &state, |saved, now| (saved.engine.alarm_finished(now), ()));
+    operate(app, &state, |saved, now| {
+        (saved.engine.alarm_finished(now), ())
+    });
 }
 
 #[tauri::command]

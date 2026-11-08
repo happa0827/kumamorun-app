@@ -35,11 +35,7 @@ fn changed_times(prev: &Restrictions, next: &Restrictions) -> Vec<Option<NaiveTi
 impl Engine {
     /// 利用者がスタート制限を書き換えた。書き換えただけで境界を通過したとはみなさず、
     /// 前面の固定をどうするかを返す。
-    pub fn edit_restrictions(
-        &mut self,
-        next: Restrictions,
-        now: NaiveDateTime,
-    ) -> Vec<Effect> {
+    pub fn edit_restrictions(&mut self, next: Restrictions, now: NaiveDateTime) -> Vec<Effect> {
         let prev = self.restrictions.clone();
         self.set_restrictions(next, now);
         let changed = changed_times(&prev, &self.restrictions);

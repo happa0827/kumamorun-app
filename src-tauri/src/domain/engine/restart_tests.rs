@@ -143,9 +143,10 @@ fn 停止中に通過した制限時刻は復帰後に鳴らさない() {
     e.tick(at(9, 11, 59, 0));
     let mut e = restart(&e);
     let effects = e.tick(at(9, 12, 30, 0));
-    assert!(!effects
-        .iter()
-        .any(|f| matches!(f, Effect::Notice(Notice::Boundary { .. }) | Effect::Sound(Sound::Alarm))));
+    assert!(!effects.iter().any(|f| matches!(
+        f,
+        Effect::Notice(Notice::Boundary { .. }) | Effect::Sound(Sound::Alarm)
+    )));
     assert_eq!(e.stop_prompt(at(9, 12, 30, 0)), None);
 }
 
@@ -154,9 +155,10 @@ fn スタート制限と通知の設定も復元される() {
     let mut e = engine(at(9, 10, 0, 0));
     e.set_notify20(true);
     let mut e = restart(&e);
-    assert!(e
-        .start_timer(TimerKind::Play, Duration::minutes(10), at(9, 12, 30, 0))
-        .is_err());
+    assert!(
+        e.start_timer(TimerKind::Play, Duration::minutes(10), at(9, 12, 30, 0))
+            .is_err()
+    );
     e.start_timer(TimerKind::Play, Duration::minutes(60), at(9, 10, 0, 0))
         .unwrap();
     let effects = e.tick(at(9, 10, 20, 0));

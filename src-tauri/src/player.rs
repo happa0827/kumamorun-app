@@ -12,11 +12,11 @@ use crate::audio_out;
 use crate::domain::effects::Sound;
 use crate::domain::timer::TimerKind;
 use crate::settings::Use;
-use crate::speech::{amplify, gain_for};
-use crate::tts;
 use crate::sound::{
     ALARM_SECS, EVOLVE_SECS, Note, eye_break_notes, irregular_beeps, render, warning_notes,
 };
+use crate::speech::{amplify, gain_for};
+use crate::tts;
 
 const RATE: u32 = 44_100;
 

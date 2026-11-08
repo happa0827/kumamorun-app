@@ -27,9 +27,10 @@ fn text(title: impl Into<String>, body: impl Into<String>) -> ToastText {
 
 pub fn toast_text(notice: Notice) -> ToastText {
     match notice {
-        Notice::TimerFinished(kind) => {
-            text(format!("{} が終わりました", kind_label(kind)), "お疲れさまでした！")
-        }
+        Notice::TimerFinished(kind) => text(
+            format!("{} が終わりました", kind_label(kind)),
+            "お疲れさまでした！",
+        ),
         Notice::TimerWarning { kind, minutes } => text(
             format!("{} まもなく終了", kind_label(kind)),
             format!("残り{minutes}分です"),
@@ -175,7 +176,10 @@ mod tests {
             pair(Notice::Bloomed {
                 flower: Flower::Peony
             }),
-            ("お花が咲いた！🌸".into(), "ボタン が咲きました！お花+1".into())
+            (
+                "お花が咲いた！🌸".into(),
+                "ボタン が咲きました！お花+1".into()
+            )
         );
     }
 

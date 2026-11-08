@@ -48,10 +48,7 @@ fn 遊びを開始できる() {
     let effects = e
         .start_timer(TimerKind::Play, Duration::minutes(30), at(9, 10, 0, 0))
         .unwrap();
-    assert!(has(
-        &effects,
-        Effect::ReleaseAlwaysOnTop { force: true }
-    ));
+    assert!(has(&effects, Effect::ReleaseAlwaysOnTop { force: true }));
     assert_eq!(e.phase(at(9, 10, 0, 0)), Phase::Play);
     assert_eq!(
         e.timer_remaining(at(9, 10, 0, 0)),
@@ -251,7 +248,11 @@ fn 設定がオンなら遊びの20分ごとに目の休憩を知らせる() {
     let effects = e.tick(at(9, 10, 20, 0));
     assert!(has(&effects, Effect::Notice(Notice::EyeBreak)));
     assert!(has(&effects, Effect::Sound(Sound::EyeBreak)));
-    assert!(!e.tick(at(9, 10, 20, 1)).iter().any(|f| matches!(f, Effect::Notice(Notice::EyeBreak))));
+    assert!(
+        !e.tick(at(9, 10, 20, 1))
+            .iter()
+            .any(|f| matches!(f, Effect::Notice(Notice::EyeBreak)))
+    );
 
     let effects = e.tick(at(9, 10, 40, 0));
     assert!(has(&effects, Effect::Notice(Notice::EyeBreak)));
@@ -334,7 +335,10 @@ fn 再開した後も残り5分の予告は一度だけ() {
     e.tick(at(9, 10, 5, 0));
     e.pause(at(9, 10, 6, 0));
     e.resume(at(9, 10, 7, 0));
-    assert!(!has(&e.tick(at(9, 10, 8, 0)), Effect::Sound(Sound::Warning)));
+    assert!(!has(
+        &e.tick(at(9, 10, 8, 0)),
+        Effect::Sound(Sound::Warning)
+    ));
 }
 
 // ---- スタート制限の境界 ----
@@ -386,7 +390,10 @@ fn 遊び中に終了時刻に達すると打ち切られる() {
             stopped_play: true
         })
     ));
-    assert_eq!(e.phase(at(9, 22, 1, 0)), Phase::Ended(BoundaryKind::EndTime));
+    assert_eq!(
+        e.phase(at(9, 22, 1, 0)),
+        Phase::Ended(BoundaryKind::EndTime)
+    );
     assert_eq!(e.plays(), 0);
 }
 
@@ -466,9 +473,10 @@ fn スリープ中に通過した制限時刻は復帰後に鳴らさない() {
     e.tick(at(9, 11, 59, 58));
     // 12:00 を眠って過ごし、12:30 に復帰した。
     let effects = e.tick(at(9, 12, 30, 0));
-    assert!(!effects
-        .iter()
-        .any(|f| matches!(f, Effect::Notice(Notice::Boundary { .. }) | Effect::Sound(Sound::Alarm))));
+    assert!(!effects.iter().any(|f| matches!(
+        f,
+        Effect::Notice(Notice::Boundary { .. }) | Effect::Sound(Sound::Alarm)
+    )));
 }
 
 #[test]

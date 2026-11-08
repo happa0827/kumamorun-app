@@ -62,7 +62,8 @@ pub fn play(
     };
     let channels = NonZero::new(channels).ok_or("チャンネル数が0です")?;
     let rate = NonZero::new(rate).ok_or("サンプルレートが0です")?;
-    sink.mixer().add(SamplesBuffer::new(channels, rate, samples));
+    sink.mixer()
+        .add(SamplesBuffer::new(channels, rate, samples));
     let started = Instant::now();
     while started.elapsed() < length + TAIL && !cancelled() {
         thread::sleep(POLL);

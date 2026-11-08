@@ -73,9 +73,11 @@ fn run(app: &AppHandle) {
             .filter(|i| desktops.is_on_current(all[*i].hwnd) == Some(false))
             .collect();
 
-        let current = desktops
-            .current_from_foreground()
-            .or_else(|| (!strays.is_empty()).then(|| desktops.current_from_probe()).flatten());
+        let current = desktops.current_from_foreground().or_else(|| {
+            (!strays.is_empty())
+                .then(|| desktops.current_from_probe())
+                .flatten()
+        });
         let Some(current) = current else {
             // 動かす相手が居るのに今のデスクトップが分からなかった。
             if !strays.is_empty() {

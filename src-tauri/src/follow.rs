@@ -84,9 +84,6 @@ mod tests {
 
     #[test]
     fn 切り替わった直後は_対象をすべて連れて行く() {
-        assert_eq!(
-            movers(true, &["main", "mini"], &[]),
-            vec!["main", "mini"]
-        );
+        assert_eq!(movers(true, &["main", "mini"], &[]), vec!["main", "mini"]);
     }
 }

@@ -283,7 +283,12 @@ impl Engine {
         effects
     }
 
-    fn on_timer_finished(&mut self, kind: TimerKind, now: NaiveDateTime, effects: &mut Vec<Effect>) {
+    fn on_timer_finished(
+        &mut self,
+        kind: TimerKind,
+        now: NaiveDateTime,
+        effects: &mut Vec<Effect>,
+    ) {
         // 昼休憩中は閉じられる。それ以外は次のタイマーを始めるまで閉じられない最前面にする。
         if self.restrictions.lunch_remaining(now).is_some() {
             self.lunch_released = true;
@@ -586,8 +591,20 @@ mod tests {
         assert_eq!(week.len(), 7);
         assert_eq!(week[0].date, date(4));
         assert_eq!(week[6].date, date(10));
-        assert_eq!(week[5].record, DayRecord { plays: 1, failures: 0 });
-        assert_eq!(week[6].record, DayRecord { plays: 2, failures: 0 });
+        assert_eq!(
+            week[5].record,
+            DayRecord {
+                plays: 1,
+                failures: 0
+            }
+        );
+        assert_eq!(
+            week[6].record,
+            DayRecord {
+                plays: 2,
+                failures: 0
+            }
+        );
         assert_eq!(week[0].record, DayRecord::default());
     }
 

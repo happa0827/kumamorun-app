@@ -93,7 +93,11 @@ fn 三角波と鋸波は範囲内で動く() {
 fn まもなく終了は同じ高さの3連ビープ() {
     let notes = warning_notes();
     assert_eq!(notes.len(), 3);
-    assert!(notes.iter().all(|n| n.freq == 1396.91 && n.wave == Wave::Square));
+    assert!(
+        notes
+            .iter()
+            .all(|n| n.freq == 1396.91 && n.wave == Wave::Square)
+    );
     let starts: Vec<f64> = notes.iter().map(|n| n.at).collect();
     assert_eq!(starts, vec![0.0, 0.16, 0.32]);
 }

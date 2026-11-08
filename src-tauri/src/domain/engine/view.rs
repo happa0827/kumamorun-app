@@ -40,11 +40,7 @@ fn ceil_secs(left: Duration) -> i64 {
 }
 
 impl Engine {
-    pub fn view(
-        &self,
-        now: NaiveDateTime,
-        to_epoch_ms: &dyn Fn(NaiveDateTime) -> i64,
-    ) -> View {
+    pub fn view(&self, now: NaiveDateTime, to_epoch_ms: &dyn Fn(NaiveDateTime) -> i64) -> View {
         let active = self.timer.as_ref().filter(|timer| !timer.is_finished());
         View {
             status: self.live_status(now, to_epoch_ms),
