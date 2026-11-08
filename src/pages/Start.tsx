@@ -61,6 +61,7 @@ export function Start({ onBack, onStarted }: Props) {
         <div className={styles.actions}>
           <Button
             size="lg"
+            className="accent-button"
             loading={starting === "play"}
             disabled={starting === "break"}
             onClick={() => start("play")}

@@ -84,7 +84,12 @@ export function Account({ onBack }: Props) {
             messages={{ showPassword: "パスワードを表示", hidePassword: "パスワードを隠す" }}
           />
           <div className={styles.pair}>
-            <Button type="submit" loading={busy === "login"} disabled={busy === "signup"}>
+            <Button
+              type="submit"
+              className="accent-button"
+              loading={busy === "login"}
+              disabled={busy === "signup"}
+            >
               ログイン
             </Button>
             <Button

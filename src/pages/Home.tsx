@@ -150,7 +150,7 @@ export function Home({ view, onNavigate }: Props) {
         </section>
 
         <nav className={styles.nav} aria-label="メニュー">
-          <Button size="lg" onClick={() => onNavigate("start")}>
+          <Button size="lg" className="accent-button" onClick={() => onNavigate("start")}>
             スタート
           </Button>
           <Button variant="secondary" size="lg" onClick={() => onNavigate("account")}>
@@ -178,7 +178,7 @@ export function Home({ view, onNavigate }: Props) {
       {view.stopPrompt && (
         <div className={`${styles.overlay} ${styles.quit}`} role="alertdialog" aria-modal="true">
           <p className={styles.quitMessage}>{quitMessage(view.stopPrompt)}</p>
-          <Button size="lg" onClick={() => pressStopped()}>
+          <Button size="lg" className="accent-button" onClick={() => pressStopped()}>
             やめた
           </Button>
         </div>

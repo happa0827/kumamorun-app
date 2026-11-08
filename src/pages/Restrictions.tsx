@@ -107,7 +107,7 @@ export function Restrictions({ onBack }: Props) {
         </Alert>
       )}
 
-      <Button size="lg" loading={saving} disabled={!loaded} onClick={save}>
+      <Button size="lg" className="accent-button" loading={saving} disabled={!loaded} onClick={save}>
         保存
       </Button>
     </main>

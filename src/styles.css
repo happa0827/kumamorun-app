@@ -34,6 +34,16 @@ body {
   min-width: 0;
 }
 
+/*
+ * 主ボタン（Arc の Button の primary）を、白ではなくアクセントの緑にする。
+ * Arc の primary は「文字=--background、背景=--foreground」なので、この2つをボタンの中だけ
+ * 差し替える。形・余白・動きは Arc のまま、色だけが変わる。
+ */
+.accent-button {
+  --foreground: var(--accent);
+  --background: var(--accent-foreground);
+}
+
 /* ===== トースト（透過の別窓） ===== */
 .toast-region {
   position: fixed;

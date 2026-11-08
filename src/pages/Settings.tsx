@@ -102,6 +102,7 @@ function AboutSection() {
       )}
       {(update.kind === "found" || update.kind === "installing") && (
         <Button
+          className="accent-button"
           loading={update.kind === "installing"}
           onClick={() => install(update.info)}
         >
@@ -356,7 +357,7 @@ export function Settings({ onBack }: Props) {
 
       <AboutSection />
 
-      <Button size="lg" loading={saving} disabled={!loaded} onClick={save}>
+      <Button size="lg" className="accent-button" loading={saving} disabled={!loaded} onClick={save}>
         保存
       </Button>
     </main>
