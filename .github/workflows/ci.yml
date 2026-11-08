@@ -41,13 +41,17 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      # Windows の既定シェル(pwsh)は、複数行のうち最後のコマンドの結果しか見ない。
+      # 途中のコマンドが失敗しても、ステップが成功になってしまう。bash なら1つでも失敗した時点で落ちる。
       - name: Lint and format check
+        shell: bash
         run: |
           bun run lint
           bun run fmt:check
           cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       - name: Test
+        shell: bash
         run: |
           bunx tsc --noEmit
           bun test

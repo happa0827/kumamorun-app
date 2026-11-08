@@ -36,6 +36,7 @@ jobs:
 
       # 型検査とテストが通らないものは配布しない。
       - name: Test
+        shell: bash
         run: |
           bunx tsc --noEmit
           bun test
