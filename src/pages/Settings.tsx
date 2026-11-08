@@ -1,4 +1,12 @@
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Alert } from "@/components/arc/alert/alert";
+import { Button } from "@/components/arc/button/button";
+import { Checkbox } from "@/components/arc/checkbox/checkbox";
+import { Input } from "@/components/arc/input/input";
+import { MorphSelect } from "@/components/arc/morph-select/morph-select";
+import { Slider } from "@/components/arc/slider/slider";
+import styles from "./Settings.module.css";
 import { getSettings, listOutputs, saveSettings, speakNow, testSound } from "../api";
 import { acceleratorFromKey, shortcutLabel } from "../shortcut";
 import { parseSeconds, secondsText } from "../forms";
@@ -9,6 +17,10 @@ interface Props {
 }
 
 const NO_SPEAKERS: Speakers = { play: null, rest: null, notify: null, shared: "" };
+
+const SAME = "same";
+const DEFAULT = "default";
+const DEVICE = "device:";
 
 /** 出力先の選択。`null`（共通と同じ）を選べるのは、共通以外の用途だけ。 */
 function SpeakerSelect({
@@ -25,38 +37,52 @@ function SpeakerSelect({
   onChange: (next: string | null) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
   // 選ばれている名前が今は見つからなくても、選択肢に残して見えるようにする。
   const missing = value && !outputs.includes(value) ? [value] : [];
   const test = async () => {
     setError(null);
+    setTesting(true);
     try {
       await testSound(purpose, value ?? "");
     } catch (e) {
       setError(String(e));
+    } finally {
+      setTesting(false);
     }
   };
 
+  // Select の項目に空文字は使えないので、「共通と同じ」「既定」「各デバイス」を接頭辞で区別する。
+  const options = [
+    ...(purpose !== "shared" ? [{ value: SAME, label: "共通の設定と同じ" }] : []),
+    { value: DEFAULT, label: "既定のスピーカー" },
+    ...[...outputs, ...missing].map((name) => ({ value: DEVICE + name, label: name })),
+  ];
+  const selected = value === null ? SAME : value === "" ? DEFAULT : DEVICE + value;
+  const change = (next: string) =>
+    onChange(next === SAME ? null : next === DEFAULT ? "" : next.slice(DEVICE.length));
+
   return (
-    <div className="field">
-      <span className="field-label">{label}</span>
-      <div className="speaker-row">
-        <select
-          value={value ?? "\u0000same"}
-          onChange={(e) => onChange(e.target.value === "\u0000same" ? null : e.target.value)}
-        >
-          {purpose !== "shared" && <option value={"\u0000same"}>共通の設定と同じ</option>}
-          <option value="">既定のスピーカー</option>
-          {[...outputs, ...missing].map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={test}>
+    <div className={styles.speaker}>
+      <div className={styles.row}>
+        <div className={styles.grow}>
+          <MorphSelect
+            label={label}
+            value={selected}
+            onValueChange={change}
+            items={options}
+            searchable={false}
+          />
+        </div>
+        <Button variant="secondary" loading={testing} onClick={test}>
           テスト再生
-        </button>
+        </Button>
       </div>
-      {error && <span className="hint">{error}</span>}
+      {error && (
+        <Alert tone="danger" title="再生できませんでした">
+          {error}
+        </Alert>
+      )}
     </div>
   );
 }
@@ -71,6 +97,7 @@ export function Settings({ onBack }: Props) {
   const [volume, setVolume] = useState(100);
   const [shortcutError, setShortcutError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const captureShortcut = (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.preventDefault();
@@ -95,6 +122,7 @@ export function Settings({ onBack }: Props) {
 
   const save = async () => {
     setShortcutError(null);
+    setSaving(true);
     try {
       await saveSettings({
         playSecs: parseSeconds(play),
@@ -106,58 +134,54 @@ export function Settings({ onBack }: Props) {
       });
     } catch (e) {
       // 設定は保存されている。ショートカットだけ登録できなかったので、画面に残して知らせる。
-      setShortcutError(`保存しました。ただし、${String(e)}`);
+      setShortcutError(String(e));
+      setSaving(false);
       return;
     }
     onBack();
   };
 
   return (
-    <div className="app">
-      <button className="btn-back" onClick={onBack}>
-        ← 戻る
-      </button>
+    <main className={styles.page}>
+      <Button variant="ghost" size="sm" className={styles.back} onClick={onBack}>
+        <ArrowLeft size={16} strokeWidth={1.75} aria-hidden="true" />
+        戻る
+      </Button>
 
-      <div className="page-title">
-        <h1>設定</h1>
-      </div>
+      <h1 className={styles.title}>設定</h1>
 
-      <div className="section">
-        <span className="section-title">既定の時間</span>
-        <div className="field">
-          <span className="field-label">遊びの時間（秒）</span>
-          <input
-            type="number"
-            placeholder="例: 1200"
-            value={play}
-            onChange={(e) => setPlay(e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <span className="field-label">休憩の時間（秒）</span>
-          <input
-            type="number"
-            placeholder="例: 300"
-            value={rest}
-            onChange={(e) => setRest(e.target.value)}
-          />
-        </div>
-      </div>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>既定の時間</h2>
+        <Input
+          label="遊びの時間（秒）"
+          type="number"
+          inputMode="numeric"
+          placeholder="例: 1200"
+          value={play}
+          onChange={(e) => setPlay(e.target.value)}
+        />
+        <Input
+          label="休憩の時間（秒）"
+          type="number"
+          inputMode="numeric"
+          placeholder="例: 300"
+          value={rest}
+          onChange={(e) => setRest(e.target.value)}
+        />
+      </section>
 
-      <div className="section">
-        <span className="section-title">目の休憩</span>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={notify20}
-            onChange={(e) => setNotify20(e.target.checked)}
-          />
-          20分ごとに目の休憩（20-20-20ルール）を知らせる
-        </label>
-      </div>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>目の休憩</h2>
+        <Checkbox
+          label="20分ごとに目の休憩を知らせる"
+          description="20-20-20ルールです"
+          checked={notify20}
+          onCheckedChange={(next) => setNotify20(next === true)}
+        />
+      </section>
 
-      <div className="section">
-        <span className="section-title">音の出力先</span>
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>音の出力先</h2>
         <SpeakerSelect
           label="遊びの完走"
           purpose="play"
@@ -186,52 +210,51 @@ export function Settings({ onBack }: Props) {
           outputs={outputs}
           onChange={(shared) => setSpeakers({ ...speakers, shared: shared ?? "" })}
         />
-      </div>
+      </section>
 
-      <div className="section">
-        <span className="section-title">残り時間の読み上げ</span>
-        <div className="field">
-          <span className="field-label">読み上げのショートカットキー</span>
-          <div className="shortcut-row">
-            <input
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>残り時間の読み上げ</h2>
+        <div className={styles.row}>
+          <div className={styles.grow}>
+            <Input
+              label="読み上げのショートカットキー"
               type="text"
               readOnly
               value={shortcut ? shortcutLabel(shortcut) : ""}
               placeholder={shortcut === "" ? "無効" : "クリックしてキーを押す"}
               onKeyDown={captureShortcut}
             />
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => speakNow(volume)}>
-              テスト
-            </button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShortcut("")}>
-              無効
-            </button>
           </div>
+          <Button variant="secondary" onClick={() => speakNow(volume)}>
+            テスト
+          </Button>
+          <Button variant="secondary" onClick={() => setShortcut("")}>
+            無効にする
+          </Button>
         </div>
-        <div className="field">
-          <span className="field-label">読み上げの音量</span>
-          <div className="range-row">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={volume}
-              onChange={(e) => setVolume(Number(e.target.value))}
-            />
-            <span className="range-value">{volume}%</span>
-          </div>
-        </div>
-        <p className="hint">
+        <Slider
+          label="読み上げの音量"
+          min={0}
+          max={100}
+          step={5}
+          value={volume}
+          onValueChange={setVolume}
+          format={(v) => `${v}%`}
+        />
+        <p className={styles.hint}>
           入力欄をクリックしてから、使いたいキーを押してください（Ctrl / Alt / Shift
           のどれかと、英数字か F1〜F12 の組み合わせ）。他のアプリで作業中でも、押せば残り時間を読み上げます。
         </p>
-        {shortcutError && <p className="hint">{shortcutError}</p>}
-      </div>
+        {shortcutError && (
+          <Alert tone="warning" title="保存しました。ショートカットは登録できませんでした">
+            {shortcutError}
+          </Alert>
+        )}
+      </section>
 
-      <button className="btn btn-primary btn-block" disabled={!loaded} onClick={save}>
+      <Button size="lg" loading={saving} disabled={!loaded} onClick={save}>
         保存
-      </button>
-    </div>
+      </Button>
+    </main>
   );
 }

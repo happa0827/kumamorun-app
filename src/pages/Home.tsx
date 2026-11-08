@@ -1,5 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Alert } from "@/components/arc/alert/alert";
+import { Button } from "@/components/arc/button/button";
+import { AnimatedCounter } from "@/components/arc/animated-counter/animated-counter";
 import {
   checkUpdate,
   installUpdate,
@@ -15,6 +18,7 @@ import type { Page, View } from "../types";
 import { useCloud } from "../cloud/sync";
 import { characterImage } from "../growthImage";
 import kumaRu from "../assets/kuma-ru.png";
+import styles from "./Home.module.css";
 
 interface Props {
   view: View;
@@ -79,124 +83,130 @@ export function Home({ view, onNavigate }: Props) {
     if (view.stopPrompt && focus) closeFocus();
   }, [view.stopPrompt, focus]);
 
+  const failures = view.daily?.failures ?? 0;
+
   return (
     <>
-      <div className="app app-split">
-        <header className="topbar">
-          <div className="brand-row">
-            <span className="brand">kumamorun</span>
-            {update && (
-              <button
-                className="btn btn-ghost btn-sm"
-                disabled={updating}
-                title="入れると再起動します。タイマーは止まります"
-                onClick={install}
-              >
-                {updating ? "更新中…" : `新しい版 v${update.version} に更新`}
-              </button>
-            )}
-            {updateError && <span className="hint">{updateError}</span>}
-          </div>
+      <main className={styles.page}>
+        <header className={styles.header}>
+          <span className={styles.brand}>kumamorun</span>
+          {update && (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={updating}
+              title="入れると再起動します。タイマーは止まります"
+              onClick={install}
+            >
+              {updating ? "更新中" : `v${update.version} に更新`}
+            </Button>
+          )}
+          {updateError && (
+            <Alert tone="danger" title="更新できませんでした" className={styles.updateError}>
+              {updateError}
+            </Alert>
+          )}
         </header>
 
-        <div className="half top-half">
-          <div className="top-block top-block-row">
-            <div className="stage">
-              <img className="avatar" src={characterImage(cloud.evolution, view.bloom)} alt="くまもーるん" />
+        <section className={styles.hero}>
+          <img
+            className={styles.avatar}
+            src={characterImage(cloud.evolution, view.bloom)}
+            alt="くまもーるん"
+          />
+
+          <div className={styles.info}>
+            <div className={styles.stats}>
+              <Stat label="進化" value={cloud.evolution} context="6段階中" />
+              <Stat
+                label={
+                  <>
+                    <img className={styles.flower} src={kumaRu} alt="" />
+                    花
+                  </>
+                }
+                value={cloud.flowers}
+                context="集めた数"
+              />
+              <Stat label="失敗" value={failures} context="今日" />
             </div>
 
-            <div className="top-text">
-              <div className="stat-row">
-                <div className="stat-item">
-                  <span className="tile-label">進化</span>
-                  <span className="tile-value">
-                    <span>{cloud.evolution ?? "-"}</span>
-                    <span className="tile-sub"> / 6</span>
-                  </span>
-                </div>
-                <div className="stat-divider" />
-                <div className="stat-item">
-                  <span className="tile-label">
-                    <img className="label-icon" src={kumaRu} alt="花" />{" "}
-                  </span>
-                  <span className="tile-value">
-                    <span>{cloud.flowers ?? "-"}</span>
-                  </span>
-                </div>
-                <div className="stat-divider" />
-                <div className="stat-item">
-                  <span className="tile-label">😔 失敗</span>
-                  <span className="tile-value">
-                    <span>{view.daily?.failures ?? 0}</span>
-                  </span>
-                </div>
-              </div>
-
-              <div className="timer-line">
-                <span className="tile-label">{label}</span>
-                <span className="tile-value tile-value-time">{remaining}</span>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  disabled={!view.timerActive}
-                  onClick={toggle}
-                >
+            <div className={styles.timer}>
+              <span className={styles.timerLabel}>{label}</span>
+              <span className={styles.remaining}>{remaining}</span>
+              <div className={styles.timerActions}>
+                <Button variant="secondary" size="sm" disabled={!view.timerActive} onClick={toggle}>
                   {toggleLabel(view)}
-                </button>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  disabled={!view.timerActive}
-                  onClick={openFocus}
-                >
+                </Button>
+                <Button variant="secondary" size="sm" disabled={!view.timerActive} onClick={openFocus}>
                   集中
-                </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => openMini()}>
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => openMini()}>
                   ミニ
-                </button>
+                </Button>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="half bottom-half">
-          <div className="grid2">
-            <button className="tile tile-btn tile-primary" onClick={() => onNavigate("start")}>
-              スタート
-            </button>
-            <button className="tile tile-btn" onClick={() => onNavigate("account")}>
-              アカウント
-            </button>
-            <button className="tile tile-btn" onClick={() => onNavigate("settings")}>
-              設定
-            </button>
-            <button className="tile tile-btn" onClick={() => onNavigate("restrictions")}>
-              スタート制限
-            </button>
-          </div>
-        </div>
-      </div>
+        <nav className={styles.nav} aria-label="メニュー">
+          <Button size="lg" onClick={() => onNavigate("start")}>
+            スタート
+          </Button>
+          <Button variant="secondary" size="lg" onClick={() => onNavigate("account")}>
+            アカウント
+          </Button>
+          <Button variant="secondary" size="lg" onClick={() => onNavigate("settings")}>
+            設定
+          </Button>
+          <Button variant="secondary" size="lg" onClick={() => onNavigate("restrictions")}>
+            スタート制限
+          </Button>
+        </nav>
+      </main>
 
       {focus && (
-        <div className="focus-overlay" onClick={closeFocus}>
-          <div className="focus-label">{label}</div>
-          <div className="focus-remaining">{remaining}</div>
-          <button className="focus-exit" onClick={closeFocus}>
+        <div className={styles.overlay} onClick={closeFocus}>
+          <div className={styles.focusLabel}>{label}</div>
+          <div className={styles.focusRemaining}>{remaining}</div>
+          <Button variant="secondary" className={styles.focusExit} onClick={closeFocus}>
             閉じる（Esc）
-          </button>
+          </Button>
         </div>
       )}
 
       {view.stopPrompt && (
-        <div className="quit-confirm-overlay">
-          <p className="quit-confirm-message">{quitMessage(view.stopPrompt)}</p>
-          <button
-            type="button"
-            className="btn btn-primary quit-confirm-btn"
-            onClick={() => pressStopped()}
-          >
+        <div className={`${styles.overlay} ${styles.quit}`} role="alertdialog" aria-modal="true">
+          <p className={styles.quitMessage}>{quitMessage(view.stopPrompt)}</p>
+          <Button size="lg" onClick={() => pressStopped()}>
             やめた
-          </button>
+          </Button>
         </div>
       )}
     </>
+  );
+}
+
+// クラウドの値は未取得のことがあるので、その間はカウンターを出さずに「-」を見せる。
+function Stat({
+  label,
+  value,
+  context,
+}: {
+  label: ReactNode;
+  value: number | null | undefined;
+  context: string;
+}) {
+  // MetricCard のラベルは文字列だけなので、花の画像を出せるよう、同じ見た目を AnimatedCounter で組む。
+  return (
+    <article className={styles.stat}>
+      <span className={styles.statLabel}>{label}</span>
+      {value == null ? (
+        <span className={styles.statValue}>-</span>
+      ) : (
+        <AnimatedCounter value={value} animateOnView />
+      )}
+      <span className={styles.statContext}>{context}</span>
+    </article>
   );
 }

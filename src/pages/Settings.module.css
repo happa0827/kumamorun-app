@@ -1,0 +1,69 @@
+.page {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  /* 中身は最大 40rem の1カラム。広い窓では左右の余白で中央に寄せる */
+  padding: var(--space-6) max(var(--space-6), calc((100% - 40rem) / 2));
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), "Segoe UI", system-ui, sans-serif;
+}
+
+.back {
+  align-self: flex-start;
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+}
+
+.sectionTitle {
+  font-size: var(--text-base);
+  font-weight: 500;
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-body);
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.speaker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 480px) {
+  .section {
+    padding: var(--space-4);
+  }
+  .row {
+    flex-wrap: wrap;
+  }
+}
