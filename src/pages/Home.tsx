@@ -79,7 +79,9 @@ export function Home({ view, onNavigate }: Props) {
   }, [focus]);
 
   // 「やめた」確認が出たら、集中モードは閉じて確認を見せる。
+  // 閉じる処理は Rust（固定の解除）への通知を含むので、effect の中で呼ぶ。
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
     if (view.stopPrompt && focus) closeFocus();
   }, [view.stopPrompt, focus]);
 
@@ -166,12 +168,16 @@ export function Home({ view, onNavigate }: Props) {
       </main>
 
       {focus && (
-        <div className={styles.overlay} onClick={closeFocus}>
-          <div className={styles.focusLabel}>{label}</div>
-          <div className={styles.focusRemaining}>{remaining}</div>
-          <Button variant="secondary" className={styles.focusExit} onClick={closeFocus}>
-            閉じる（Esc）
-          </Button>
+        // 画面のどこを押しても閉じる。キーボードでは Esc と「閉じる」ボタンがあるので、
+        // 背景そのものは操作の対象にしない（role="presentation"）。
+        <div className={styles.overlay} role="presentation" onClick={closeFocus}>
+          <section className={styles.focus} aria-label="集中モード">
+            <div className={styles.focusLabel}>{label}</div>
+            <div className={styles.focusRemaining}>{remaining}</div>
+            <Button variant="secondary" className={styles.focusExit} onClick={closeFocus}>
+              閉じる（Esc）
+            </Button>
+          </section>
         </div>
       )}
 

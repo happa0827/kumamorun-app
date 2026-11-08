@@ -142,6 +142,15 @@
   cursor: pointer;
 }
 
+/* overlay の中身。overlay と同じ縦並び・中央寄せで、見た目は変えない */
+.focus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-8);
+}
+
 .focusLabel {
   font-size: var(--text-2xl);
   color: var(--text-secondary);
