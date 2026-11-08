@@ -72,6 +72,9 @@ function SpeakerSelect({
             onValueChange={change}
             items={options}
             searchable={false}
+            // 機器名は長いので、開いた一覧を広く・高くして、折り返しやスクロールを避ける。
+            panelWidth={560}
+            maxListHeight={480}
           />
         </div>
         <Button variant="secondary" loading={testing} onClick={test}>
