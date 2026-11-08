@@ -20,6 +20,9 @@ import { characterImage } from "../growthImage";
 import kumaRu from "../assets/kuma-ru.png";
 import styles from "./Home.module.css";
 
+/** データの保存先を切り替える日（2026-11-15）の翌日の0時。これを過ぎたら案内を消す。 */
+const SHOW_SWITCH_NOTICE = new Date() < new Date(2026, 10, 16);
+
 interface Props {
   view: View;
   onNavigate: (page: Page) => void;
@@ -109,6 +112,12 @@ export function Home({ view, onNavigate }: Props) {
             </Alert>
           )}
         </header>
+
+        {SHOW_SWITCH_NOTICE && (
+          <Alert tone="info" title="11月15日(日)にデータの保存先を切り替えます">
+            それまでに、ログインしたままこのアプリを一度起動しておいてください。進化段階と花の数を、この端末に控えます。念のため、設定の「データの書き出し」でファイルにも残せます。
+          </Alert>
+        )}
 
         <section className={styles.hero}>
           <img
