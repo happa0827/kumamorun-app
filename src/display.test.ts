@@ -40,19 +40,21 @@ describe("display", () => {
     expect(display(view({}))).toEqual({ label: "", remaining: "-" });
   });
   test("稼働中は残りとラベル", () => {
-    expect(
-      display(view({ phase: "play", label: "遊び", remainingSec: 1500 })),
-    ).toEqual({ label: "遊び", remaining: "25:00" });
+    expect(display(view({ phase: "play", label: "遊び", remainingSec: 1500 }))).toEqual({
+      label: "遊び",
+      remaining: "25:00",
+    });
   });
   test("境界までの表示はラベルに従う", () => {
-    expect(
-      display(view({ phase: "play", label: "遊び（昼休憩まで）", remainingSec: 90 })),
-    ).toEqual({ label: "遊び（昼休憩まで）", remaining: "01:30" });
+    expect(display(view({ phase: "play", label: "遊び（昼休憩まで）", remainingSec: 90 }))).toEqual(
+      { label: "遊び（昼休憩まで）", remaining: "01:30" },
+    );
   });
   test("一時停止中も残りを出す", () => {
-    expect(
-      display(view({ phase: "paused", label: "休憩", remainingSec: 61 })),
-    ).toEqual({ label: "休憩", remaining: "01:01" });
+    expect(display(view({ phase: "paused", label: "休憩", remainingSec: 61 }))).toEqual({
+      label: "休憩",
+      remaining: "01:01",
+    });
   });
   test("昼休憩", () => {
     expect(
@@ -60,9 +62,10 @@ describe("display", () => {
     ).toEqual({ label: "昼休憩中（終了まで）", remaining: "30:00" });
   });
   test("休憩の猶予", () => {
-    expect(
-      display(view({ phase: "reward", label: "休憩の猶予", remainingSec: 120 })),
-    ).toEqual({ label: "休憩の猶予", remaining: "02:00" });
+    expect(display(view({ phase: "reward", label: "休憩の猶予", remainingSec: 120 }))).toEqual({
+      label: "休憩の猶予",
+      remaining: "02:00",
+    });
   });
   test("時間切れ", () => {
     expect(display(view({ phase: "finished", label: "遊び" }))).toEqual({
@@ -71,12 +74,14 @@ describe("display", () => {
     });
   });
   test("打ち切りは理由を出す", () => {
-    expect(
-      display(view({ phase: "ended", label: "遊び", endedBy: "lunchStart" })),
-    ).toEqual({ label: "遊び", remaining: "昼休憩の時間です" });
-    expect(
-      display(view({ phase: "ended", label: "遊び", endedBy: "endTime" })),
-    ).toEqual({ label: "遊び", remaining: "終了の時間です" });
+    expect(display(view({ phase: "ended", label: "遊び", endedBy: "lunchStart" }))).toEqual({
+      label: "遊び",
+      remaining: "昼休憩の時間です",
+    });
+    expect(display(view({ phase: "ended", label: "遊び", endedBy: "endTime" }))).toEqual({
+      label: "遊び",
+      remaining: "終了の時間です",
+    });
   });
   test("残りが欠けていても 00:00 にする", () => {
     expect(display(view({ phase: "play", label: "遊び", remainingSec: null }))).toEqual({
@@ -98,8 +103,6 @@ describe("quitMessage", () => {
     expect(quitMessage({ kind: "lunchStart", leftSec: 120 })).toBe(
       "昼休憩だよ。やめた？（残り120秒）",
     );
-    expect(quitMessage({ kind: "endTime", leftSec: 5 })).toBe(
-      "今日はここまで？（残り5秒）",
-    );
+    expect(quitMessage({ kind: "endTime", leftSec: 5 })).toBe("今日はここまで？（残り5秒）");
   });
 });

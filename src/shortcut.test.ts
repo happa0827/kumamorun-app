@@ -34,7 +34,9 @@ describe("acceleratorFromKey", () => {
   });
 
   test("修飾キーだけを押した間は決まらない", () => {
-    expect(acceleratorFromKey(key({ ctrlKey: true, code: "ControlLeft", key: "Control" }))).toBeNull();
+    expect(
+      acceleratorFromKey(key({ ctrlKey: true, code: "ControlLeft", key: "Control" })),
+    ).toBeNull();
     expect(acceleratorFromKey(key({ altKey: true, code: "AltLeft", key: "Alt" }))).toBeNull();
   });
 

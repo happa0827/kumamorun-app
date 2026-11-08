@@ -92,7 +92,9 @@ function AboutSection() {
 
       {update.kind === "latest" && (
         <Alert tone="success" title="最新の版です">
-          {import.meta.env.DEV ? "開発ビルドでは、新しい版の確認はしません。" : "更新はありません。"}
+          {import.meta.env.DEV
+            ? "開発ビルドでは、新しい版の確認はしません。"
+            : "更新はありません。"}
         </Alert>
       )}
       {(update.kind === "found" || update.kind === "installing") && (
@@ -346,7 +348,8 @@ export function Settings({ onBack }: Props) {
         />
         <p className={styles.hint}>
           入力欄をクリックしてから、使いたいキーを押してください（Ctrl / Alt / Shift
-          のどれかと、英数字か F1〜F12 の組み合わせ）。他のアプリで作業中でも、押せば残り時間を読み上げます。
+          のどれかと、英数字か F1〜F12
+          の組み合わせ）。他のアプリで作業中でも、押せば残り時間を読み上げます。
         </p>
         {shortcutError && (
           <Alert tone="warning" title="保存しました。ショートカットは登録できませんでした">
@@ -357,7 +360,13 @@ export function Settings({ onBack }: Props) {
 
       <AboutSection />
 
-      <Button size="lg" className="accent-button" loading={saving} disabled={!loaded} onClick={save}>
+      <Button
+        size="lg"
+        className="accent-button"
+        loading={saving}
+        disabled={!loaded}
+        onClick={save}
+      >
         保存
       </Button>
     </main>

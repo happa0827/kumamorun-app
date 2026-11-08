@@ -66,7 +66,8 @@ export function useCloud(): CloudState {
   );
 }
 
-const sameForm = (a: RestrictionsForm, b: RestrictionsForm) => JSON.stringify(a) === JSON.stringify(b);
+const sameForm = (a: RestrictionsForm, b: RestrictionsForm) =>
+  JSON.stringify(a) === JSON.stringify(b);
 
 /** 設定画面から。ログイン中ならクラウドにも保存して、端末間で共有する。 */
 export async function saveRestrictionsEverywhere(form: RestrictionsForm): Promise<void> {
@@ -189,7 +190,9 @@ export function startCloudSync(): void {
     if (!connected || !uid) return;
     void syncDays();
     // つながるたびに、切断時の書き込みを登録し直し、Rust の最新の状態で書き直す。
-    registerOfflineOnDisconnect(uid).catch((e) => console.warn("onDisconnect の登録に失敗しました", e));
+    registerOfflineOnDisconnect(uid).catch((e) =>
+      console.warn("onDisconnect の登録に失敗しました", e),
+    );
     throttle.reset();
     push();
   });

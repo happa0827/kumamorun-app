@@ -45,7 +45,9 @@ function DaySection({
 
       <div className={styles.group}>
         <h3 className={styles.groupTitle}>完全終了</h3>
-        <p className={styles.hint}>この時刻を過ぎると、翌日までスタートできません。空欄なら無効です。</p>
+        <p className={styles.hint}>
+          この時刻を過ぎると、翌日までスタートできません。空欄なら無効です。
+        </p>
         <div className={styles.times}>
           <Input label="時刻" type="time" value={value.endTime} onChange={set("endTime")} />
         </div>
@@ -107,7 +109,13 @@ export function Restrictions({ onBack }: Props) {
         </Alert>
       )}
 
-      <Button size="lg" className="accent-button" loading={saving} disabled={!loaded} onClick={save}>
+      <Button
+        size="lg"
+        className="accent-button"
+        loading={saving}
+        disabled={!loaded}
+        onClick={save}
+      >
         保存
       </Button>
     </main>

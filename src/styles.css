@@ -96,7 +96,9 @@ body {
   border: none;
   border-radius: var(--radius-control);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .toast-close:hover {
@@ -194,7 +196,9 @@ body.toast-host .toast-region {
   cursor: pointer;
   /* ドラッグ領域の中でもボタンとして押せるようにする */
   -webkit-app-region: no-drag;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .mini-exit:hover {

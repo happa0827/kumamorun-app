@@ -123,8 +123,7 @@ export function Home({ view, onNavigate }: Props) {
               <Stat
                 label={
                   <>
-                    <img className={styles.flower} src={kumaRu} alt="" />
-                    花
+                    <img className={styles.flower} src={kumaRu} alt="" />花
                   </>
                 }
                 value={cloud.flowers}
@@ -140,7 +139,12 @@ export function Home({ view, onNavigate }: Props) {
                 <Button variant="secondary" size="sm" disabled={!view.timerActive} onClick={toggle}>
                   {toggleLabel(view)}
                 </Button>
-                <Button variant="secondary" size="sm" disabled={!view.timerActive} onClick={openFocus}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!view.timerActive}
+                  onClick={openFocus}
+                >
                   集中
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => openMini()}>

@@ -79,7 +79,11 @@ export async function signInDevAccount(): Promise<void> {
 const path = (uid: string, key: string) => `users/${uid}/${key}`;
 
 /** 数値の項目（進化・花）を購読する。無ければ 0。 */
-export function watchNumber(uid: string, key: "evolution" | "flowers", callback: (n: number) => void) {
+export function watchNumber(
+  uid: string,
+  key: "evolution" | "flowers",
+  callback: (n: number) => void,
+) {
   return onValue(ref(db, path(uid, key)), (snap) => callback(Number(snap.val() ?? 0)));
 }
 

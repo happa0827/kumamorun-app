@@ -28,7 +28,8 @@ function setup(options: {
       if (options.readError) throw new Error("offline");
       return stage;
     },
-    plan: async (current) => (options.plan ?? ((c) => ({ stage: c + 1, flower: null, gain: 0 })))(current),
+    plan: async (current) =>
+      (options.plan ?? ((c) => ({ stage: c + 1, flower: null, gain: 0 })))(current),
     casStage: async (expected, next) => {
       if (casFailures > 0) {
         casFailures -= 1;

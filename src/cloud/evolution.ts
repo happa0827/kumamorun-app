@@ -48,7 +48,8 @@ export async function applyPendingEvolutions(deps: EvolutionDeps): Promise<numbe
       await deps.restore();
       return applied;
     }
-    if (plan.flower) await deps.addFlowers(plan.gain).catch((e) => console.warn("花の加算に失敗しました", e));
+    if (plan.flower)
+      await deps.addFlowers(plan.gain).catch((e) => console.warn("花の加算に失敗しました", e));
     await deps.commit(plan.flower);
     applied += 1;
   }

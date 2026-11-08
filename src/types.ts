@@ -13,7 +13,7 @@ export type Phase =
 
 export type Page = "home" | "start" | "settings" | "restrictions" | "account";
 
-export type StopKind ="lunchStart" | "endTime";
+export type StopKind = "lunchStart" | "endTime";
 
 export interface StopPrompt {
   kind: StopKind;
