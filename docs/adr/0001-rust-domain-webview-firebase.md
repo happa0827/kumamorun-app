@@ -1,6 +1,8 @@
 ---
-status: accepted
+status: superseded by ADR-0002
 ---
+
+> 「Firebase は WebView に置く」と、それに続く Firebase 前提の記述は、[ADR 0002](0002-void-d1-replaces-firebase.md) で置き換えた（同期は Rust に移し、DB は D1 にする）。ドメインと音を Rust が持つ判断は、そのまま有効。移行が終わるまでの、現行の記録として残す。
 
 # ドメインと音は Rust、Firebase は WebView に置く
 
