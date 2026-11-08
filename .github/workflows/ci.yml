@@ -34,10 +34,15 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: "./src-tauri -> target"
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
+
+      - name: Lint and format check
+        run: |
+          bun run lint
+          bun run fmt:check
 
       - name: Test
         run: |
