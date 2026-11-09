@@ -55,6 +55,7 @@ pub fn run() {
             app::export_backup,
             cloud::worker::get_cloud,
             cloud::worker::open_login,
+            cloud::worker::open_site,
             cloud::worker::log_out_cloud,
             updater::check_update,
             updater::install_update,

@@ -35,6 +35,9 @@ const INITIAL: CloudState = {
 /** ブラウザーでログインのページを開く。サイトの「アプリを開く」で、アプリに戻ってくる。 */
 export const openLogin = () => invoke<void>("open_login");
 
+/** ブラウザーでサイト（状況ページ）を開く。 */
+export const openSite = () => invoke<void>("open_site");
+
 /** ログアウト。先にサイトを「停止」にして、サーバー側のトークンを失効する。 */
 export const logOut = () => invoke<void>("log_out_cloud");
 

@@ -121,10 +121,9 @@ impl Cloud {
         self.lock().view.clone()
     }
 
-    pub fn login_url(&self) -> Option<String> {
-        self.base
-            .as_ref()
-            .map(|base| format!("{}/link", base.trim_end_matches('/')))
+    /// サイトのページの URL。`path` は `/` で始める。
+    pub fn page_url(&self, path: &str) -> Option<String> {
+        self.base.as_deref().map(|base| page_url(base, path))
     }
 
     pub fn mark_settings_dirty(&self) {
@@ -502,13 +501,43 @@ pub fn get_cloud(cloud: tauri::State<Cloud>) -> CloudView {
 /// ブラウザーでログインのページを開く。サイトが「アプリを開く」でリンクを渡してくる。
 #[tauri::command]
 pub fn open_login(app: AppHandle, cloud: tauri::State<Cloud>) -> Result<(), String> {
+    open_page(&app, &cloud, "/link")
+}
+
+/// ブラウザーでサイトを開く（状況ページ。ログイン済みのブラウザーなら、そのまま見られる）。
+#[tauri::command]
+pub fn open_site(app: AppHandle, cloud: tauri::State<Cloud>) -> Result<(), String> {
+    open_page(&app, &cloud, "/")
+}
+
+fn open_page(app: &AppHandle, cloud: &Cloud, path: &str) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let url = cloud
-        .login_url()
-        .ok_or("接続先が設定されていません（このビルドではログインできません）")?;
+        .page_url(path)
+        .ok_or("接続先が設定されていません（このビルドでは開けません）")?;
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| format!("ブラウザーを開けません: {e}"))
+}
+
+fn page_url(base: &str, path: &str) -> String {
+    format!("{}{path}", base.trim_end_matches('/'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ページのurlは_末尾のスラッシュの有無によらず同じ() {
+        for base in [
+            "https://example.workers.dev",
+            "https://example.workers.dev/",
+        ] {
+            assert_eq!(page_url(base, "/link"), "https://example.workers.dev/link");
+            assert_eq!(page_url(base, "/"), "https://example.workers.dev/");
+        }
+    }
 }
 
 #[tauri::command]

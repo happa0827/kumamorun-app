@@ -1,16 +1,16 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/components/arc/alert/alert";
 import { Badge } from "@/components/arc/badge/badge";
 import { Button } from "@/components/arc/button/button";
-import { logOut, openLogin, useCloud } from "../cloud/sync";
+import { logOut, openLogin, openSite, useCloud } from "../cloud/sync";
 import styles from "./Account.module.css";
 
 interface Props {
   onBack: () => void;
 }
 
-type Busy = "login" | "logout";
+type Busy = "login" | "logout" | "site";
 
 export function Account({ onBack }: Props) {
   const cloud = useCloud();
@@ -80,6 +80,10 @@ export function Account({ onBack }: Props) {
 
       {cloud.loggedIn && (
         <>
+          <Button size="lg" className="accent-button" onClick={() => run("site", openSite)}>
+            <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
+            サイトを開く
+          </Button>
           <p className={styles.hint}>
             ログイン中の端末は、サイトの設定画面で確認や失効ができます。
           </p>
