@@ -1,0 +1,114 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-family: var(--font-body), "Segoe UI", system-ui, sans-serif;
+  color: var(--foreground);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.part {
+  min-width: 4.5rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.part[aria-pressed="true"] {
+  background: var(--accent-subtle);
+  color: var(--foreground);
+}
+
+.part:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.digits {
+  position: relative;
+  display: inline-block;
+}
+
+.colon {
+  color: var(--text-muted);
+}
+
+.face {
+  width: 100%;
+  max-width: 16rem;
+  align-self: center;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.face:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+
+.plate {
+  fill: var(--surface-muted);
+  stroke: var(--border);
+}
+
+.hand line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.hand circle {
+  fill: var(--accent);
+}
+
+.pivot {
+  fill: var(--accent);
+}
+
+.mark {
+  fill: var(--foreground);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.markSmall {
+  font-size: 9px;
+  fill: var(--text-secondary);
+}
+
+/* 針の先の丸の上に乗る数字は、丸の色に合わせて抜く。 */
+.markOn {
+  fill: var(--accent-foreground);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .part {
+    transition: none;
+  }
+}
