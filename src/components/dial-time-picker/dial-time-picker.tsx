@@ -1,4 +1,11 @@
-import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent, MutableRefObject, PointerEvent } from "react";
 import { motionTokens } from "../arc/lib/motion-tokens";
@@ -147,21 +154,40 @@ export function DialTimePicker({ label, value, onChange, description }: Props) {
           key={mode}
           initial={reduced ? false : { opacity: 0, scale: mode === "minute" ? 0.92 : 1.08 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: reduced ? 0 : motionTokens.duration.standard, ease: [...motionTokens.ease.enter] }}
+          transition={{
+            duration: reduced ? 0 : motionTokens.duration.standard,
+            ease: [...motionTokens.ease.enter],
+          }}
           style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}
         >
           {mode === "hour" ? (
             <>
               {HOURS_OUTER.map((h) => (
-                <Mark key={h} text={String(h).padStart(2, "0")} {...pointAt(h * 30, OUTER_RADIUS)} on={parsed?.hour === h} />
+                <Mark
+                  key={h}
+                  text={String(h).padStart(2, "0")}
+                  {...pointAt(h * 30, OUTER_RADIUS)}
+                  on={parsed?.hour === h}
+                />
               ))}
               {HOURS_INNER.map((h) => (
-                <Mark key={h} text={String(h)} {...pointAt((h - 12) * 30, INNER_RADIUS)} on={parsed?.hour === h} small />
+                <Mark
+                  key={h}
+                  text={String(h)}
+                  {...pointAt((h - 12) * 30, INNER_RADIUS)}
+                  on={parsed?.hour === h}
+                  small
+                />
               ))}
             </>
           ) : (
             MINUTE_MARKS.map((m) => (
-              <Mark key={m} text={String(m).padStart(2, "0")} {...pointAt(m * 6, OUTER_RADIUS)} on={parsed?.minute === m} />
+              <Mark
+                key={m}
+                text={String(m).padStart(2, "0")}
+                {...pointAt(m * 6, OUTER_RADIUS)}
+                on={parsed?.minute === m}
+              />
             ))
           )}
         </motion.g>
@@ -253,7 +279,10 @@ function Digits({ text }: { text: string }) {
         style={{ display: "inline-block" }}
         initial={reduced ? false : { y: `${d * 0.3}em` }}
         animate={{ y: 0 }}
-        transition={{ duration: reduced ? 0 : motionTokens.duration.fast, ease: [...motionTokens.ease.standard] }}
+        transition={{
+          duration: reduced ? 0 : motionTokens.duration.fast,
+          ease: [...motionTokens.ease.standard],
+        }}
       >
         {text}
       </motion.span>
@@ -261,10 +290,31 @@ function Digits({ text }: { text: string }) {
   );
 }
 
-function Mark({ text, x, y, on, small }: { text: string; x: number; y: number; on: boolean; small?: boolean }) {
-  const className = [styles.mark, small ? styles.markSmall : "", on ? styles.markOn : ""].filter(Boolean).join(" ");
+function Mark({
+  text,
+  x,
+  y,
+  on,
+  small,
+}: {
+  text: string;
+  x: number;
+  y: number;
+  on: boolean;
+  small?: boolean;
+}) {
+  const className = [styles.mark, small ? styles.markSmall : "", on ? styles.markOn : ""]
+    .filter(Boolean)
+    .join(" ");
   return (
-    <text className={className} x={x} y={y} textAnchor="middle" dominantBaseline="central" aria-hidden="true">
+    <text
+      className={className}
+      x={x}
+      y={y}
+      textAnchor="middle"
+      dominantBaseline="central"
+      aria-hidden="true"
+    >
       {text}
     </text>
   );

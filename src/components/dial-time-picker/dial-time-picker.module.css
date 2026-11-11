@@ -30,7 +30,9 @@
   color: var(--text-secondary);
   font: inherit;
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .part[aria-pressed="true"] {

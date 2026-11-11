@@ -10,6 +10,8 @@
     "lint": "oxlint",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run lint && bun run fmt:check && bun run typecheck",
     "tauri": "tauri"
   },
   "dependencies": {
