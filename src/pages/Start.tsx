@@ -63,7 +63,7 @@ export function Start({ onBack, onStarted }: Props) {
 
         <h1 className={styles.title}>スタート</h1>
 
-        <div className={styles.modes} role="group" aria-label="時間の決め方">
+        <div className={styles.modes} role="toolbar" aria-label="時間の決め方">
           <Button
             variant={mode === "duration" ? "secondary" : "ghost"}
             size="sm"

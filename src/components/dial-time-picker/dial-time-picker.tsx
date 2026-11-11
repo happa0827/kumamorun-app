@@ -96,7 +96,7 @@ export function DialTimePicker({ label, value, onChange, description }: Props) {
         {label}
       </span>
 
-      <div className={styles.readout} role="group" aria-labelledby={`${id}-label`}>
+      <div className={styles.readout} role="toolbar" aria-labelledby={`${id}-label`}>
         <button
           type="button"
           className={styles.part}
@@ -118,10 +118,12 @@ export function DialTimePicker({ label, value, onChange, description }: Props) {
         </button>
       </div>
 
+      {/* SVG の盤面は input では作れないため、スライダーの役割を明示する。 */}
       <svg
         ref={faceRef}
         className={styles.face}
         viewBox="0 0 200 200"
+        // eslint-disable-next-line jsx-a11y/prefer-tag-over-role
         role="slider"
         tabIndex={0}
         aria-labelledby={`${id}-label`}
@@ -188,28 +190,31 @@ function Hand({
   const x = useTransform([angle, radius], ([a, r]: number[]) => pointAt(a, r).x);
   const y = useTransform([angle, radius], ([a, r]: number[]) => pointAt(a, r).y);
 
+  const targetAngle = target?.angle;
+  const targetRadius = target?.radius;
+
   useEffect(() => {
-    if (!target) {
+    if (targetAngle === undefined || targetRadius === undefined) {
       shown.current = false;
       return;
     }
-    const delta = ((((target.angle - angle.get()) % 360) + 540) % 360) - 180;
+    const delta = ((((targetAngle - angle.get()) % 360) + 540) % 360) - 180;
     const nextAngle = angle.get() + delta;
     if (!shown.current || reduced) {
       // 初めて現れるときと動きを減らす設定では、その場に置く。
       angle.jump(nextAngle);
-      radius.jump(target.radius);
+      radius.jump(targetRadius);
       shown.current = true;
       return;
     }
     const spring = dragging.current ? motionTokens.spring.responsive : motionTokens.spring.snappy;
     const a = animate(angle, nextAngle, spring);
-    const r = animate(radius, target.radius, spring);
+    const r = animate(radius, targetRadius, spring);
     return () => {
       a.stop();
       r.stop();
     };
-  }, [target?.angle, target?.radius, reduced, angle, radius, dragging]);
+  }, [targetAngle, targetRadius, reduced, angle, radius, dragging]);
 
   return (
     <AnimatePresence>
@@ -232,15 +237,14 @@ function Hand({
 /** 数字が変わると、増えたら下から、減ったら上から入れ替わる。 */
 function Digits({ text }: { text: string }) {
   const reduced = useReducedMotion() ?? false;
-  const last = useRef(text);
-  const direction = useRef(1);
-  if (last.current !== text) {
+  const [last, setLast] = useState(text);
+  const [d, setD] = useState(1);
+  if (last !== text) {
     const next = Number(text);
-    const prev = Number(last.current);
-    direction.current = Number.isFinite(next) && Number.isFinite(prev) && next < prev ? -1 : 1;
-    last.current = text;
+    const prev = Number(last);
+    setD(Number.isFinite(next) && Number.isFinite(prev) && next < prev ? -1 : 1);
+    setLast(text);
   }
-  const d = direction.current;
   return (
     <span className={styles.digits}>
       {/* 古い数字は残さず、すぐ置き換える。新しい数字だけが少しずれた位置から収まる。 */}
