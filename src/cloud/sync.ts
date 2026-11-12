@@ -48,12 +48,12 @@ export function useCloud(): CloudState {
     const unlisten = listen<CloudState>("cloud", (event) => {
       if (alive) setState(event.payload);
     });
-    invoke<CloudState>("get_cloud").then((initial) => {
+    void invoke<CloudState>("get_cloud").then((initial) => {
       if (alive) setState(initial);
     });
     return () => {
       alive = false;
-      unlisten.then((fn) => fn());
+      void unlisten.then((fn) => fn());
     };
   }, []);
   return state;

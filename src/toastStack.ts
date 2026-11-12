@@ -15,7 +15,8 @@ export interface ToastItem {
 
 interface Entry {
   item: ToastItem;
-  timer: unknown | null;
+  /** Scheduler が返したハンドル。タイマーが無いときは `null`。 */
+  timer: unknown;
   held: boolean;
 }
 

@@ -70,7 +70,7 @@ export function Restrictions({ onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getRestrictions().then((loadedForm) => {
+    void getRestrictions().then((loadedForm) => {
       setForm(loadedForm);
       setLoaded(true);
     });

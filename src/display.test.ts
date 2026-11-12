@@ -19,6 +19,8 @@ const base: View = {
   timerRunning: false,
   endedBy: null,
   stopPrompt: null,
+  pendingEvolutions: 0,
+  bloom: null,
 };
 
 const view = (patch: Partial<View>): View => ({ ...base, ...patch });
