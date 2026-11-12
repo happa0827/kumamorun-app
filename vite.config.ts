@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, lazyPlugins } from "vite-plus";
 import react from "@vitejs/plugin-react";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
@@ -7,7 +7,18 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [react()],
+  plugins: lazyPlugins(() => [react()]),
+  lint: {
+    plugins: ["typescript", "react", "jsx-a11y", "oxc"],
+    categories: { correctness: "error" },
+    rules: {},
+    env: { builtin: true, browser: true },
+    ignorePatterns: ["src/components/arc/**", "src-tauri/**", "dist/**"],
+  },
+  fmt: {
+    printWidth: 100,
+    ignorePatterns: ["src/components/arc/**", "src-tauri/**", "dist/**", "docs/**", "bun.lock"],
+  },
   resolve: {
     // tsconfig の paths と同じ。Arc の "@/components/arc/..." を解決する
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
