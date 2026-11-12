@@ -41,8 +41,7 @@ jobs:
       - name: Lint and format check
         shell: bash
         run: |
-          bun run lint
-          bun run fmt:check
+          bunx vp check
           cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       # 型検査とテストが通らないものは配布しない。
