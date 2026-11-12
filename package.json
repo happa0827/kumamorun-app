@@ -1,6 +1,6 @@
 {
   "name": "kumamorun-tauri",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "fmt:check": "oxfmt --check",
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run fmt:check && bun run typecheck",
+    "bump": "bun scripts/bump.ts",
     "tauri": "tauri"
   },
   "dependencies": {

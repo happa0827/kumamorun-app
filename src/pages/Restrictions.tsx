@@ -2,7 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert } from "@/components/arc/alert/alert";
 import { Button } from "@/components/arc/button/button";
-import { Input } from "@/components/arc/input/input";
+import { DialTimePicker } from "@/components/dial-time-picker/dial-time-picker";
 import { getRestrictions, saveRestrictions } from "../api";
 import type { DayForm, RestrictionsForm } from "../types";
 import styles from "./Restrictions.module.css";
@@ -22,11 +22,9 @@ function DaySection({
   value: DayForm;
   onChange: (next: DayForm) => void;
 }) {
-  const set = (key: keyof DayForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    onChange({ ...value, [key]: e.target.value });
+  const set = (key: keyof DayForm) => (next: string) => onChange({ ...value, [key]: next });
 
-  // 時刻は分まで自由に決められる（空欄で無効）ので、Arc の TimePicker（刻み固定）ではなく、
-  // type="time" の Input を使う。
+  // 時刻は分まで自由に決められる。空欄は無効を表すので、「空欄に戻す」を出す。
   return (
     <section className={styles.section}>
       <h2 className={styles.sectionTitle}>{title}</h2>
@@ -37,8 +35,18 @@ function DaySection({
           この時間帯はスタートできません。開始と終了のどちらかが空欄なら、無効になります。
         </p>
         <div className={styles.times}>
-          <Input label="開始" type="time" value={value.lunchStart} onChange={set("lunchStart")} />
-          <Input label="終了" type="time" value={value.lunchEnd} onChange={set("lunchEnd")} />
+          <DialTimePicker
+            label="開始"
+            clearable
+            value={value.lunchStart}
+            onChange={set("lunchStart")}
+          />
+          <DialTimePicker
+            label="終了"
+            clearable
+            value={value.lunchEnd}
+            onChange={set("lunchEnd")}
+          />
         </div>
       </div>
 
@@ -48,7 +56,7 @@ function DaySection({
           この時刻を過ぎると、翌日までスタートできません。空欄なら無効です。
         </p>
         <div className={styles.times}>
-          <Input label="時刻" type="time" value={value.endTime} onChange={set("endTime")} />
+          <DialTimePicker label="時刻" clearable value={value.endTime} onChange={set("endTime")} />
         </div>
       </div>
     </section>

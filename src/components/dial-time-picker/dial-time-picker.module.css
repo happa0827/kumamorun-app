@@ -21,33 +21,54 @@
   font-variant-numeric: tabular-nums;
 }
 
+.partBox {
+  position: relative;
+  display: inline-block;
+  color: var(--text-secondary);
+  transition: color 150ms ease;
+}
+
+.partBox[data-active="true"] {
+  color: var(--foreground);
+}
+
+/* 文字は透明。見えている数字は下の .partText（SlotText）で、キャレットだけ入力欄が出す。 */
 .part {
-  min-width: 4.5rem;
+  display: block;
+  box-sizing: border-box;
+  width: 4.5rem;
   padding: var(--space-1) var(--space-3);
   border: 1px solid transparent;
   border-radius: var(--radius-control);
   background: transparent;
-  color: var(--text-secondary);
+  color: transparent;
+  caret-color: var(--foreground);
   font: inherit;
-  cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: background-color 150ms ease;
 }
 
-.part[aria-pressed="true"] {
+.partBox[data-active="true"] .part {
   background: var(--accent-subtle);
-  color: var(--foreground);
+}
+
+.partText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.part[aria-invalid="true"] {
+  border-color: var(--danger);
 }
 
 .part:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-.digits {
-  position: relative;
-  display: inline-block;
 }
 
 .colon {
@@ -101,6 +122,61 @@
 /* 針の先の丸の上に乗る数字は、丸の色に合わせて抜く。 */
 .markOn {
   fill: var(--accent-foreground);
+}
+
+/* 入力欄の下に浮かぶポップアップ。下の要素は動かさず、上に重ねる。 */
+.anchor {
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  width: 17rem;
+  max-width: calc(100vw - 2rem);
+  margin-inline: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-floating);
+  transform-origin: top center;
+}
+
+/* 下に収まらないときは、入力欄の上に出す。 */
+.panel[data-placement="above"] {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+  transform-origin: bottom center;
+}
+
+.clear {
+  align-self: center;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .description {
