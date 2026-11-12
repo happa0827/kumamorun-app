@@ -11,7 +11,7 @@
     "fmt": "vp fmt",
     "fmt:check": "vp fmt --check",
     "typecheck": "tsc --noEmit",
-    "check": "vp check && tsc --noEmit",
+    "check": "vp check",
     "bump": "bun scripts/bump.ts",
     "tauri": "tauri"
   },

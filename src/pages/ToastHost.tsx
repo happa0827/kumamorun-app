@@ -50,11 +50,11 @@ export function ToastHost() {
       if (hovered !== null) toasts.hold(hovered);
     });
     // 受け取る準備ができてから、溜まっていた分を流してもらう。
-    Promise.all([offToast, offHover]).then(() => toastReady());
+    void Promise.all([offToast, offHover]).then(() => toastReady());
     return () => {
       document.body.classList.remove("toast-host");
-      offToast.then((fn) => fn());
-      offHover.then((fn) => fn());
+      void offToast.then((fn) => fn());
+      void offHover.then((fn) => fn());
     };
   }, []);
 
@@ -67,7 +67,7 @@ export function ToastHost() {
       id: Number(card.dataset.id),
       ...settledBox(card),
     }));
-    toastLayout({
+    void toastLayout({
       width: Math.ceil(rect.width),
       height: Math.ceil(rect.height),
       count: items.length,

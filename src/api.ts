@@ -69,12 +69,12 @@ export function useView(): View | null {
     const unlisten = listen<View>("view", (event) => {
       if (alive) setView(event.payload);
     });
-    getView().then((initial) => {
+    void getView().then((initial) => {
       if (alive) setView((current) => current ?? initial);
     });
     return () => {
       alive = false;
-      unlisten.then((fn) => fn());
+      void unlisten.then((fn) => fn());
     };
   }, []);
   return view;

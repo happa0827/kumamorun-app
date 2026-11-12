@@ -57,18 +57,18 @@ export function Home({ view, onNavigate }: Props) {
 
   const openFocus = () => {
     setFocus(true);
-    setFocusMode(true);
+    void setFocusMode(true);
   };
   const closeFocus = () => {
     setFocus(false);
-    setFocusMode(false);
+    void setFocusMode(false);
   };
 
   // Rust が固定を解いたとき（アラームの停止など）にも閉じる。
   useEffect(() => {
     const off = listen("focus-closed", () => setFocus(false));
     return () => {
-      off.then((fn) => fn());
+      void off.then((fn) => fn());
     };
   }, []);
 

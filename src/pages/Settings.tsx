@@ -256,7 +256,7 @@ export function Settings({ onBack }: Props) {
   };
 
   useEffect(() => {
-    getSettings().then((s) => {
+    void getSettings().then((s) => {
       setPlay(secondsText(s.playSecs));
       setRest(secondsText(s.breakSecs));
       setNotify20(s.notify20);

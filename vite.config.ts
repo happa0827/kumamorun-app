@@ -1,6 +1,5 @@
 import { defineConfig, lazyPlugins } from "vite-plus";
 import react from "@vitejs/plugin-react";
-// @ts-expect-error type error without @types/node package
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 const host = process.env.TAURI_DEV_HOST;
@@ -11,6 +10,7 @@ export default defineConfig(() => ({
   lint: {
     plugins: ["typescript", "react", "jsx-a11y", "oxc"],
     categories: { correctness: "error" },
+    options: { typeAware: true, typeCheck: true },
     rules: {},
     env: { builtin: true, browser: true },
     ignorePatterns: ["src/components/arc/**", "src-tauri/**", "dist/**"],
