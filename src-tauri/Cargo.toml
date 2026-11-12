@@ -1,6 +1,6 @@
 [package]
 name = "kumamorun-tauri"
-version = "2.5.1"
+version = "2.6.0"
 description = "Kumamorun"
 authors = ["happa0827"]
 edition = "2024"
