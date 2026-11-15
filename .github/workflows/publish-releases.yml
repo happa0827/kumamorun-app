@@ -1,0 +1,44 @@
+# 下書きのリリースを時間指定で公開する（一回きり）。
+# 2026-11-15 14:00（日本時間）= 05:00 UTC に、v2.4.0・v2.5.0・v2.6.0 を公開し、v2.6.0 を Latest にする。
+# cron は毎年同じ日に動くので、2026年以外は何もしない。終わったらこのファイルは消してよい。
+# GitHub の都合で、数分〜十数分遅れることがある。急ぐときは Actions の画面から手で実行できる。
+name: Publish releases
+
+on:
+  schedule:
+    - cron: "0 5 15 11 *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish v2.4.0, v2.5.0 and v2.6.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%Y)" != "2026" ]; then
+            echo "2026年だけの予約なので、何もしない"
+            exit 0
+          fi
+          # 古い版を先に Latest にしないで公開する（公開した途端に Latest になり、自動更新が拾うのを防ぐ）
+          gh release edit v2.4.0 --draft=false --latest=false -R "$REPO"
+          gh release edit v2.5.0 --draft=false --latest=false -R "$REPO"
+          gh release edit v2.6.0 --draft=false --latest -R "$REPO"
+
+      - name: Check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release list -R "$REPO" --limit 5
+          latest=$(gh api "repos/$REPO/releases/latest" --jq .tag_name)
+          drafts=$(gh api "repos/$REPO/releases" --jq '[.[] | select(.draft)] | length')
+          echo "Latest: $latest / 下書き: $drafts"
+          [ "$latest" = "v2.6.0" ] && [ "$drafts" = "0" ]
