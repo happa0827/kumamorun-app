@@ -1,0 +1,192 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-family: var(--font-body), "Segoe UI", system-ui, sans-serif;
+  color: var(--foreground);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.partBox {
+  position: relative;
+  display: inline-block;
+  color: var(--text-secondary);
+  transition: color 150ms ease;
+}
+
+.partBox[data-active="true"] {
+  color: var(--foreground);
+}
+
+/* 文字は透明。見えている数字は下の .partText（SlotText）で、キャレットだけ入力欄が出す。 */
+.part {
+  display: block;
+  box-sizing: border-box;
+  width: 4.5rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: transparent;
+  caret-color: var(--foreground);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: background-color 150ms ease;
+}
+
+.partBox[data-active="true"] .part {
+  background: var(--accent-subtle);
+}
+
+.partText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.part[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.part:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.colon {
+  color: var(--text-muted);
+}
+
+.face {
+  width: 100%;
+  max-width: 16rem;
+  align-self: center;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.face:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 50%;
+}
+
+.plate {
+  fill: var(--surface-muted);
+  stroke: var(--border);
+}
+
+.hand line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.hand circle {
+  fill: var(--accent);
+}
+
+.pivot {
+  fill: var(--accent);
+}
+
+.mark {
+  fill: var(--foreground);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.markSmall {
+  font-size: 9px;
+  fill: var(--text-secondary);
+}
+
+/* 針の先の丸の上に乗る数字は、丸の色に合わせて抜く。 */
+.markOn {
+  fill: var(--accent-foreground);
+}
+
+/* 入力欄の下に浮かぶポップアップ。下の要素は動かさず、上に重ねる。 */
+.anchor {
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  right: 0;
+  z-index: 20;
+  width: 17rem;
+  max-width: calc(100vw - 2rem);
+  margin-inline: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-floating);
+  transform-origin: top center;
+}
+
+/* 下に収まらないときは、入力欄の上に出す。 */
+.panel[data-placement="above"] {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+  transform-origin: bottom center;
+}
+
+.clear {
+  align-self: center;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .part {
+    transition: none;
+  }
+}

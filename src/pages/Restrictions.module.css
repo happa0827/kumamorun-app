@@ -1,0 +1,66 @@
+.page {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  /* 中身は最大 40rem の1カラム。広い窓では左右の余白で中央に寄せる */
+  padding: var(--space-6) max(var(--space-6), calc((100% - 40rem) / 2));
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), "Segoe UI", system-ui, sans-serif;
+}
+
+.back {
+  align-self: flex-start;
+}
+
+.title {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+}
+
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-body);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+}
+
+.sectionTitle {
+  font-size: var(--text-base);
+  font-weight: 500;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .section {
+    padding: var(--space-4);
+  }
+}

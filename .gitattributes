@@ -1,0 +1,3 @@
+# 改行は LF にそろえる。Windows の core.autocrlf=true や CI のチェックアウトで CRLF になると、
+# oxfmt / cargo fmt の確認が全ファイルで失敗する。
+* text=auto eol=lf

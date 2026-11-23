@@ -1,0 +1,64 @@
+# PR で、リント・整形・型検査・テストを走らせる。
+# release.yml(タグの push)と同じ確認をするので、ここが通ればタグを打ったときに落ちない。
+# リリースビルドはしない(時間がかかるので、main への push の ci.yml に任せる)。
+#
+# ジョブ名(build)とキャッシュの設定は ci.yml と同じにしてある。PR は main で作ったキャッシュを読める。
+# PR のキャッシュは保存しない(その PR の中でしか読めず、容量を食うだけなので)。
+name: PR Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# 同じ PR に続けて push したら、古い実行は止める。
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          save-if: false
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # Windows の既定シェル(pwsh)は最後のコマンドの結果しか見ないので、bash で1つでも失敗したら落とす。
+      - name: Lint and format check
+        shell: bash
+        run: |
+          bunx vp check
+          cargo fmt --check --manifest-path src-tauri/Cargo.toml
+
+      - name: Test
+        shell: bash
+        run: |
+          bunx tsc --noEmit
+          bun test
+          cargo test --lib --manifest-path src-tauri/Cargo.toml
+
+      # 警告で落とさない(ci.yml と同じ)。警告はログで見る。
+      - name: Clippy
+        run: cargo clippy --all-targets --manifest-path src-tauri/Cargo.toml

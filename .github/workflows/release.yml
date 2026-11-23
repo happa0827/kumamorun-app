@@ -1,0 +1,94 @@
+# `v*` タグ(例: v2.0.0)を push すると、Windows 向けのインストーラーをビルドして
+# GitHub Releases の下書きにアップロードする。下書きを確認して公開すると、
+# 配布(アプリ内の更新通知を含む)が始まる。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # リントと整形が通らないものは配布しない。
+      # Windows の既定シェル(pwsh)は最後のコマンドの結果しか見ないので、bash で1つでも失敗したら落とす。
+      - name: Lint and format check
+        shell: bash
+        run: |
+          bunx vp check
+          cargo fmt --check --manifest-path src-tauri/Cargo.toml
+
+      # 型検査とテストが通らないものは配布しない。
+      - name: Test
+        shell: bash
+        run: |
+          bunx tsc --noEmit
+          bun test
+          cargo test --lib --manifest-path src-tauri/Cargo.toml
+
+      - name: Import code signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $pw = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath "$env:RUNNER_TEMP\cert.pfx" -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+
+      # 接続先（サイトの URL）はビルド時に決まり、実行時には変えられない。
+      # 空のまま出すと、アプリはログインできない。
+      - name: Check API base
+        shell: bash
+        env:
+          KUMAMORUN_API_BASE: ${{ vars.KUMAMORUN_API_BASE }}
+        run: |
+          case "$KUMAMORUN_API_BASE" in
+            https://*) ;;
+            *) echo "リポジトリの変数 KUMAMORUN_API_BASE に、サイトの https の URL を設定してください" >&2; exit 1 ;;
+          esac
+
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          KUMAMORUN_API_BASE: ${{ vars.KUMAMORUN_API_BASE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # アップデーター署名。bundle.createUpdaterArtifacts が true のとき秘密鍵が必須。
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: bun tauri
+          args: --bundles nsis
+          tagName: ${{ github.ref_name }}
+          releaseName: "Kumamorun ${{ github.ref_name }}"
+          releaseBody: |
+            ## ダウンロード
+            - Windows: `Kumamorun_*_x64-setup.exe`
+          releaseDraft: true
+          prerelease: false

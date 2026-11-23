@@ -1,0 +1,78 @@
+# PR を開いたとき・push したときに、Claude が変更の要約とレビューをコメントする。
+#
+# 準備(一度だけ):
+# 1. Claude の GitHub App をこのリポジトリに入れる: https://github.com/apps/claude
+# 2. 手元で `claude setup-token` を実行し、出たトークンをリポジトリの Secrets に
+#    CLAUDE_CODE_OAUTH_TOKEN という名前で登録する。
+#    (API キーを使うなら ANTHROPIC_API_KEY を登録し、下の claude_code_oauth_token を
+#     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }} に書き換える)
+#
+# 下書きの PR ではレビューしない。「Ready for review」にした時点で走る。
+name: Claude Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# 同じ PR に続けて push したら、古いレビューは止める。
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            この PR の要約とレビューをしてください。すべて日本語で書いてください。
+            このリポジトリは Tauri(Rust)+ React(TypeScript)の Windows 向けデスクトップアプリです。
+            CLAUDE.md があれば、その方針に従ってください。
+
+            手順:
+            1. `gh pr view` と `gh pr diff` で PR の内容と差分を読む。必要ならリポジトリのファイルも読む。
+            2. 次の観点でレビューする。
+               - バグ・ロジックの誤り(境界値、エラー処理、非同期の扱い、Rust と TS の間の型の食い違い)
+               - セキュリティ(秘密情報の混入、Tauri のコマンドや権限の広げすぎ、入力の検証)
+               - 性能上の問題
+               - テストが足りないところ
+               推測ではなく、差分とコードで確かめられた問題だけを挙げる。細かい好みの指摘はしない。
+            3. 特定の行についての指摘は、`mcp__github_inline_comment__create_inline_comment` で
+               その行にインラインコメントする(`confirmed: true` を付ける)。
+            4. 最後に、PR 全体へのコメントを1つ投稿する。形式:
+
+               **要約**
+               (何を・なぜ変えたかを3〜5行で)
+
+               **変更点**
+               (主なファイルと変更内容の箇条書き)
+
+               **レビュー**
+               (指摘を重要度順に。なければ「問題は見つかりませんでした」)
+
+               重要: コメントの本文(インラインコメントも含む)に `#` の文字を一切使わないこと。
+               `#` や `##` の見出しは禁止。見出しは上のように `**太字**` で書く。
+               Issue や PR の番号も `#14` ではなく「PR 14」のように書く。
+               (改行の直後に `#` があると、Bash ツールの検査で gh コマンドが拒否されるため)
+
+               投稿は `gh pr comment ${{ github.event.pull_request.number }} --edit-last --create-if-none --body "..."` で行う。
+               push のたびにコメントが増えないよう、前回のコメントを書き換える。
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"

@@ -1,0 +1,207 @@
+/*
+ * 全ウィンドウで共通の土台と、ミニ・トーストの小窓の見た目。
+ * 色・余白・文字の大きさは Arc のトークン（components/arc/foundation.css）を使う。
+ * メイン画面の各ページは、ページごとの *.module.css に持つ。
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+}
+
+/* body の高さは固定せず、中身に合わせて伸ばす。固定（height: 100%）だと、スクロールで
+   窓の高さを超えた分は body と #root の外にはみ出し、ページの背景が届かなくなる。 */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), "Segoe UI", system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* React の差し込み先。body が flex なので、広げないと中身の幅に縮んで左に寄る。 */
+#root {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+/*
+ * 主ボタン（Arc の Button の primary）を、白ではなくアクセントの緑にする。
+ * Arc の primary は「文字=--background、背景=--foreground」なので、この2つをボタンの中だけ
+ * 差し替える。形・余白・動きは Arc のまま、色だけが変わる。
+ */
+.accent-button {
+  --foreground: var(--accent);
+  --background: var(--accent-foreground);
+}
+
+/* ===== トースト（透過の別窓） ===== */
+.toast-region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(30rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+/* 位置の計算は Rust が .toast の実測で行う。クラス名と入れ子は変えないこと。 */
+.toast {
+  position: relative;
+  padding: var(--space-4) var(--space-12) var(--space-4) var(--space-6);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-floating);
+  pointer-events: auto;
+  animation: toast-in 0.18s var(--ease-standard);
+}
+
+.toast-title {
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: var(--leading-body);
+  color: var(--foreground);
+}
+
+.toast-body {
+  margin-top: var(--space-1);
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+  color: var(--text-secondary);
+}
+
+.toast-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.toast-close:hover {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+body.toast-host {
+  min-height: 0;
+  display: block;
+  background: transparent;
+  overflow: hidden;
+}
+
+body.toast-host .toast-region {
+  position: static;
+  right: auto;
+  bottom: auto;
+  /* 30rem のカードに、影（下方向 22px + ぼかし 55px）が窓で切れない余白を両側足す */
+  width: calc(30rem + 10rem);
+  padding: 5rem;
+}
+
+/* ===== ミニモード（枠なし・背景透過の小さいウィンドウ） ===== */
+/* ウィンドウが透過なので body の背景は消す。余白は影を出すための逃げ。 */
+.mini-body {
+  background: none;
+  height: 100%;
+  min-height: 0;
+  padding: 6px;
+}
+
+.mini-card {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-6);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-floating);
+  /* タイトルバーがないので、カード自体を掴んでウィンドウを動かせるようにする */
+  -webkit-app-region: drag;
+  cursor: move;
+}
+
+.mini-label {
+  max-width: 100%;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-remaining {
+  font-family: var(--font-display), "Segoe UI", system-ui, sans-serif;
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.mini-exit {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  padding: 0 var(--space-2);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  /* ドラッグ領域の中でもボタンとして押せるようにする */
+  -webkit-app-region: no-drag;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.mini-exit:hover {
+  background: var(--surface-muted);
+  color: var(--foreground);
+}
