@@ -5,7 +5,7 @@
 
 ## 実施の記録
 
-2026-11-24 に、手順 1〜7 の主なところを行った。
+2026-11-24 に、手順 1〜8 の主なところを行った。
 
 - 済み
   - 手順 1: 履歴のない1コミット `059099e`（版 3.0.0、使っていないアイコンを除いた）。
@@ -13,14 +13,13 @@
   - 手順 2b: 最初の鍵のパスワードが分からなかったため、鍵を入れ替えた（`docs/release.md` の「鍵の入れ替え」）。v3.0.0 は古いリポジトリの Actions で古い鍵（`D6BD73E190E6274A`）で署名し、中には新しい公開鍵（`D6BDAA2685935829`）を入れた。
   - 手順 3: `kumamorun-app-archive` に改名して非公開にした（直前のフォークも0）。
   - 手順 4: 同じ名前で公開リポジトリを作り、`main` を載せた。Release のワークフローは手順 6 の間だけ止めた。
-  - 手順 5: 変数 `KUMAMORUN_API_BASE` と、Secrets 4つ（新しい鍵）を入れた。
+  - 手順 5: 変数 `KUMAMORUN_API_BASE` と、Secrets 5つ（新しい鍵、証明書、`CLAUDE_CODE_OAUTH_TOKEN`）を入れた。Claude Review は新しいリポジトリでも動いた。
   - 手順 6: 手順 2b の成果物を載せて v3.0.0 を公開した（Latest）。
   - 手順 7: 配信元の `latest.json` が 3.0.0 を返し、インストーラーが古いリポジトリで作ったものとバイト単位で一致した。アーカイブは非公開。
   - 手順 8: 古いクローン（`kumamorun-tauri`、`kumamorun-app`）の `origin` をアーカイブに向けた。手元だけの `.claude/` と `.env` を新しいクローンに写した。
 - 残り
   - v2.6.5 の端末から、アプリ内の更新で v3.0.0 に上がることを確かめる（D7）。D1〜D6 と D8 も。
   - 手元のフォルダーの入れ替え（`kumamorun-tauri` → `kumamorun-tauri-archive`、`kumamorun-fresh` → `kumamorun-tauri`）。作業中のセッションがフォルダーを使っていて、その場では入れ替えられなかった。
-  - `CLAUDE_CODE_OAUTH_TOKEN` を入れる（Claude Review 用。`claude setup-token`）。
   - CodeRabbit の GitHub App を、このリポジトリに入れる（選んだリポジトリだけの設定なら）。
   - サイト（kumamorun-projects）の文書の、古いリポジトリを指すリンクを直す。
   - **v3.0.1 は、利用者が全員 v3.0.0 以上になってから出す。**
